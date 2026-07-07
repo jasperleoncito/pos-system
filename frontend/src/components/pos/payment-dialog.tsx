@@ -40,9 +40,20 @@ interface PaymentDialogProps {
   totalCentavos: number;
   isPaying: boolean;
   onConfirm: (payments: PaymentLineInput[]) => void;
+  /** Redeemable loyalty value in centavos; 0 hides the Points method. */
+  pointsAvailableCentavos?: number;
+  pointsCustomerName?: string;
 }
 
-export function PaymentDialog({ open, onOpenChange, totalCentavos, isPaying, onConfirm }: PaymentDialogProps) {
+export function PaymentDialog({
+  open,
+  onOpenChange,
+  totalCentavos,
+  isPaying,
+  onConfirm,
+  pointsAvailableCentavos = 0,
+  pointsCustomerName,
+}: PaymentDialogProps) {
   const [rows, setRows] = useState<TenderRow[]>([]);
 
   useEffect(() => {
@@ -60,6 +71,13 @@ export function PaymentDialog({ open, onOpenChange, totalCentavos, isPaying, onC
   const cashPaid = rows
     .filter((r) => r.method === "cash")
     .reduce((sum, r) => sum + pesosToCentavos(Number(r.amountPesos) || 0), 0);
+  const pointsPaid = rows
+    .filter((r) => r.method === "points")
+    .reduce((sum, r) => sum + pesosToCentavos(Number(r.amountPesos) || 0), 0);
+
+  const methods = pointsAvailableCentavos > 0
+    ? [...METHODS, { value: "points" as PaymentMethod, label: "Points" }]
+    : METHODS;
 
   const updateRow = (i: number, patch: Partial<TenderRow>) => {
     setRows((prev) => prev.map((r, j) => (j === i ? { ...r, ...patch } : r)));
@@ -81,6 +99,10 @@ export function PaymentDialog({ open, onOpenChange, totalCentavos, isPaying, onC
     }
     if (change > cashPaid) {
       toast.error("Change cannot exceed the cash received — lower non-cash amounts");
+      return;
+    }
+    if (pointsPaid > pointsAvailableCentavos) {
+      toast.error("Points redemption exceeds the customer's balance");
       return;
     }
     const payments: PaymentLineInput[] = rows
@@ -127,7 +149,7 @@ export function PaymentDialog({ open, onOpenChange, totalCentavos, isPaying, onC
           {rows.map((row, i) => (
             <div key={i} className="space-y-2 rounded-lg border p-3">
               <div className="flex flex-wrap gap-1.5">
-                {METHODS.map(({ value, label }) => (
+                {methods.map(({ value, label }) => (
                   <button
                     key={value}
                     type="button"
@@ -169,13 +191,19 @@ export function PaymentDialog({ open, onOpenChange, totalCentavos, isPaying, onC
                   </Button>
                 )}
               </div>
-              {row.method !== "cash" && (
+              {row.method !== "cash" && row.method !== "points" && (
                 <Input
                   placeholder="Reference number"
                   aria-label={`Payment ${i + 1} reference`}
                   value={row.referenceNo}
                   onChange={(e) => updateRow(i, { referenceNo: e.target.value })}
                 />
+              )}
+              {row.method === "points" && (
+                <p className="text-xs text-muted-foreground">
+                  {pointsCustomerName} can redeem up to{" "}
+                  <span className="font-medium text-foreground">{formatCentavos(pointsAvailableCentavos)}</span> in points.
+                </p>
               )}
             </div>
           ))}

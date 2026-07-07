@@ -210,6 +210,10 @@ func (r *OrderRepo) List(ctx context.Context, tenantID string, f order.Filter) (
 		args = append(args, f.Search)
 		where += fmt.Sprintf(` AND o.order_number::text = $%d`, len(args))
 	}
+	if f.CustomerID != "" {
+		args = append(args, f.CustomerID)
+		where += fmt.Sprintf(` AND o.customer_id = $%d`, len(args))
+	}
 
 	var total int64
 	if err := r.db.QueryRow(ctx, `SELECT count(*) FROM orders o WHERE `+where, args...).Scan(&total); err != nil {

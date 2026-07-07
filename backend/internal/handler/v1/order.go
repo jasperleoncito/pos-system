@@ -50,7 +50,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	o, err := h.orders.CreateOrder(c.Request.Context(), tenantID, userID, service.CreateOrderInput{
 		OrderType: req.OrderType, TableNumber: req.TableNumber,
 		Notes: req.Notes, Hold: req.Hold, DiscountID: req.DiscountID,
-		CouponCode: req.CouponCode, Items: items,
+		CouponCode: req.CouponCode, CustomerID: req.CustomerID, Items: items,
 	})
 	if err != nil {
 		respondError(c, err)
@@ -83,10 +83,11 @@ func (h *OrderHandler) ListOrders(c *gin.Context) {
 	}
 
 	orders, total, err := h.orders.ListOrders(c.Request.Context(), tenantID, order.Filter{
-		Status: c.Query("status"),
-		Search: c.Query("search"),
-		Limit:  limit,
-		Offset: (page - 1) * limit,
+		Status:     c.Query("status"),
+		Search:     c.Query("search"),
+		CustomerID: c.Query("customer_id"),
+		Limit:      limit,
+		Offset:     (page - 1) * limit,
 	})
 	if err != nil {
 		respondError(c, err)

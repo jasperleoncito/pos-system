@@ -1,5 +1,5 @@
 export type OrderType = "dine_in" | "takeout" | "delivery";
-export type PaymentMethod = "cash" | "gcash" | "card" | "maya" | "bank_transfer";
+export type PaymentMethod = "cash" | "gcash" | "card" | "maya" | "bank_transfer" | "points";
 
 export interface OrderItemModifier {
   id: string;
@@ -131,6 +131,7 @@ export interface CreateOrderInput {
   table_number: string;
   notes: string;
   hold: boolean;
+  customer_id?: string;
   items: OrderItemInput[];
 }
 

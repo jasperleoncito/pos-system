@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { useCategories, useProducts } from "@/hooks/use-catalog";
 import { useCreateOrder, usePayOrder, useCurrentDrawer } from "@/hooks/use-orders";
+import { useLoyaltySettings, type Customer } from "@/hooks/use-customers";
 import { formatCentavos } from "@/lib/currency";
 import {
   addLine,
@@ -20,6 +21,7 @@ import type { Product } from "@/types/catalog";
 import type { Order, OrderType, PaymentLineInput } from "@/types/order";
 import { applyPromo } from "@/types/promo";
 import { CartPanel } from "@/components/pos/cart-panel";
+import { CustomerDialog } from "@/components/pos/customer-dialog";
 import { DrawerDialog } from "@/components/pos/drawer-dialog";
 import { HeldOrdersSheet } from "@/components/pos/held-orders-sheet";
 import { PaymentDialog } from "@/components/pos/payment-dialog";
@@ -50,6 +52,8 @@ export default function POSPage() {
   const [promoOpen, setPromoOpen] = useState(false);
   const [promo, setPromo] = useState<AppliedPromo>({});
   const [splittingOrder, setSplittingOrder] = useState<Order | null>(null);
+  const [customerOpen, setCustomerOpen] = useState(false);
+  const [customer, setCustomer] = useState<Customer | null>(null);
 
   const { data: categories } = useCategories(true);
   const { data: productData, isLoading } = useProducts({
@@ -59,8 +63,15 @@ export default function POSPage() {
     limit: 200,
   });
   const { data: drawerData } = useCurrentDrawer();
+  const { data: loyaltySettings } = useLoyaltySettings();
   const createOrder = useCreateOrder();
   const payOrder = usePayOrder();
+
+  // Redeemable value on this sale (centavos) for the payment dialog.
+  const pointsAvailable =
+    customer && loyaltySettings?.is_enabled
+      ? customer.points_balance * loyaltySettings.redeem_value
+      : 0;
 
   const products = useMemo(() => productData?.products ?? [], [productData]);
   const subtotal = cartTotal(lines);
@@ -101,6 +112,7 @@ export default function POSPage() {
     setPayingOrder(null);
     setMobileCartOpen(false);
     setPromo({});
+    setCustomer(null);
   };
 
   const orderPayload = (hold: boolean) => ({
@@ -110,6 +122,7 @@ export default function POSPage() {
     hold,
     discount_id: promo.discount?.id,
     coupon_code: promo.couponCode,
+    customer_id: customer?.id,
     items: toOrderItems(lines),
   });
 
@@ -177,6 +190,10 @@ export default function POSPage() {
       onTableNumberChange={setTableNumber}
       discountPreview={discountPreview}
       promoLabel={promoLabel}
+      customerLabel={
+        customer ? `${customer.full_name} · ${customer.points_balance} pts` : ""
+      }
+      onOpenCustomer={() => setCustomerOpen(true)}
       onOpenPromo={() => setPromoOpen(true)}
       onSplit={onSplit}
       onCharge={onCharge}
@@ -335,6 +352,14 @@ export default function POSPage() {
         totalCentavos={total}
         isPaying={isBusy}
         onConfirm={onConfirmPayment}
+        pointsAvailableCentavos={payingOrder ? 0 : pointsAvailable}
+        pointsCustomerName={customer?.full_name}
+      />
+      <CustomerDialog
+        open={customerOpen}
+        onOpenChange={setCustomerOpen}
+        selected={customer}
+        onSelect={setCustomer}
       />
       <ReceiptDialog orderId={receiptOrderId} onClose={() => setReceiptOrderId(null)} />
       <DrawerDialog open={drawerOpen} onOpenChange={setDrawerOpen} />

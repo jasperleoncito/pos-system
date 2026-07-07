@@ -62,6 +62,8 @@ definitions:
       coupon_code:
         maxLength: 40
         type: string
+      customer_id:
+        type: string
       discount_id:
         type: string
       hold:
@@ -112,6 +114,27 @@ definitions:
         type: array
     required:
     - amounts
+    type: object
+  dto.CustomerRequest:
+    properties:
+      birthday:
+        type: string
+      email:
+        type: string
+      full_name:
+        maxLength: 120
+        minLength: 1
+        type: string
+      is_active:
+        type: boolean
+      notes:
+        maxLength: 500
+        type: string
+      phone:
+        maxLength: 40
+        type: string
+    required:
+    - full_name
     type: object
   dto.DiscountRequest:
     properties:
@@ -249,6 +272,41 @@ definitions:
     required:
     - refresh_token
     type: object
+  dto.LoyaltySettingsRequest:
+    properties:
+      earn_rate:
+        minimum: 1
+        type: integer
+      gold_multiplier:
+        maximum: 99
+        minimum: 1
+        type: number
+      gold_threshold:
+        minimum: 0
+        type: integer
+      is_enabled:
+        type: boolean
+      redeem_value:
+        minimum: 1
+        type: integer
+      silver_multiplier:
+        maximum: 99
+        minimum: 1
+        type: number
+      silver_threshold:
+        minimum: 0
+        type: integer
+      vip_multiplier:
+        maximum: 99
+        minimum: 1
+        type: number
+      vip_threshold:
+        minimum: 0
+        type: integer
+    required:
+    - earn_rate
+    - redeem_value
+    type: object
   dto.ModifierGroupRequest:
     properties:
       is_required:
@@ -372,6 +430,7 @@ definitions:
         - card
         - maya
         - bank_transfer
+        - points
         type: string
       reference_no:
         maxLength: 100
@@ -1444,6 +1503,137 @@ paths:
       summary: Validate a coupon code against a subtotal (no redemption)
       tags:
       - promos
+  /customers:
+    get:
+      parameters:
+      - description: Name, phone, or email filter
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List customers
+      tags:
+      - customers
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Customer
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CustomerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create a customer
+      tags:
+      - customers
+  /customers/{id}:
+    delete:
+      parameters:
+      - description: Customer ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete a customer
+      tags:
+      - customers
+    get:
+      parameters:
+      - description: Customer ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get one customer
+      tags:
+      - customers
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Customer ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Customer
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CustomerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update a customer
+      tags:
+      - customers
+  /customers/{id}/loyalty:
+    get:
+      parameters:
+      - description: Customer ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Max rows (default 50)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: A customer's loyalty points history
+      tags:
+      - customers
   /discounts:
     get:
       produces:
@@ -1999,6 +2189,42 @@ paths:
       summary: Kitchen event stream (SSE)
       tags:
       - kitchen
+  /loyalty/settings:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Loyalty program settings
+      tags:
+      - customers
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Settings
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoyaltySettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update loyalty program settings (manager+)
+      tags:
+      - customers
   /modifier-groups:
     get:
       produces:

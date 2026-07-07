@@ -2,7 +2,7 @@
 
 Full-PRD build (`first-prompt.md`) in sequential phases. The system must stay runnable after every phase; each phase ends with browser/API verification and one conventional commit.
 
-**Status: Phases 0–9 DONE ✅ · Continue from Phase 10 (Customers & loyalty).**
+**Status: Phases 0–10 DONE ✅ · Continue from Phase 11 (Sales analytics dashboard).**
 
 ## Requirements beyond the PRD (user decisions)
 
@@ -48,8 +48,8 @@ Suppliers CRUD, PO lifecycle draft→ordered→partially_received→received (pe
 ### ✅ Phase 9 — Employees, schedules, attendance
 employees (optional unique user link per tenant, salary hourly/daily/monthly BIGINT centavos, photo via WebP pipeline)/employee_schedules (weekly template, day_of_week 0–6, TIME columns, grace 0–240m)/attendance_records (schedule snapshot at clock-in, one open shift per employee via partial unique index). Clock math in EmployeeService uses server time in the tenant's timezone (`tenantNow`): late = clock_in − (start+grace), early-out/overtime vs snapshot end, breaks accumulate via break_start; approval only for completed pending records (manager+, attendance:approve). Self-service routes need only a linked user (attendance:clock, every role). Dialog-portal theming fixed: brand CSS vars now mirrored onto `<html>` so Radix portals stay branded. Seed: 5 staff (4 linked to role accounts) with Mon–Sat 09:00–17:00 grace 10. UI: /employees directory (avatars, salary, schedule grid dialog, photo upload), /attendance big-button clock (live time, on-shift/break badges) + filterable review table with Approve. Verified E2E: clock-in Manila TZ snapshot 09:00+08:00, double clock-in 409, break accumulation, early-out 783m, employee role 403 on /employees + /attendance, double-approve 422, browser flow incl. 375px.
 
-### ⬜ Phase 10 — Customers & loyalty
-Customers (points_balance, tier, birthday, purchase history), membership tiers (Silver/Gold/VIP) with multipliers, loyalty_transactions ledger (balance_after), loyalty settings (earn rate, redemption value); earn on completion, redeem at POS, auto tier upgrade. UI: customer table/profile, attach-customer at POS, redeem points in payment dialog.
+### ✅ Phase 10 — Customers & loyalty
+customers (points_balance + lifetime_points, tier, unique phone per tenant)/loyalty_settings (earn_rate=centavos per point, redeem_value=centavos per point, tier thresholds+multipliers, defaults served when unsaved)/loyalty_transactions (signed points, balance_after; ApplyPoints = guarded UPDATE rejecting overdrafts + ledger insert in one tx; lifetime grows on earn, shrinks only when an earn is reversed). Points redemption = payment method `points` (requires attached customer; redeemed BEFORE payments book; counts as non-cash so ≤ due). Earn on completion (Pay + PaySplit): floor((total − points_value)/earn_rate × tier multiplier); auto tier upgrade (never downgrades). Void → ReverseForOrder (earn and redeem both reversed via adjust rows). Orders: customer_id at creation, ?customer_id= list filter. Loyalty settings RBAC = catalog:write (manager+); customers under customers:read/write. Seed: 3 demo customers. UI: /customers (tier badges, profile dialog w/ ledger + purchases tabs, loyalty program dialog), POS attach-customer (search/quick-create/detach in cart panel), Points method in payment dialog capped at balance value. Verified: ₱200 → 4pts; partial redemption excluded from earn base; overdraft + no-customer 422; void reversal exact; kitchen 403; cashier settings 403.
 
 ### ⬜ Phase 11 — Sales analytics dashboard
 Today/WTD/MTD/YTD sales, revenue/profit (− recipe COGS − expenses)/expenses, AOV, top products/categories/employees, hourly sales, day×hour heatmap, payment mix; Redis cache 2–5min TTL invalidated on completion; expenses CRUD. UI: stat cards with deltas, Recharts line/bar/donut, heatmap, date-range picker (use dataviz + ui-ux-pro-max guidance).

@@ -15,11 +15,12 @@ type CreateOrderRequest struct {
 	Hold        bool               `json:"hold"`
 	DiscountID  string             `json:"discount_id" binding:"omitempty,uuid"`
 	CouponCode  string             `json:"coupon_code" binding:"max=40"`
+	CustomerID  string             `json:"customer_id" binding:"omitempty,uuid"`
 	Items       []OrderItemRequest `json:"items" binding:"required,min=1,dive"`
 }
 
 type PaymentLineRequest struct {
-	Method      string `json:"method" binding:"required,oneof=cash gcash card maya bank_transfer"`
+	Method      string `json:"method" binding:"required,oneof=cash gcash card maya bank_transfer points"`
 	Amount      int64  `json:"amount" binding:"required,min=1"`
 	ReferenceNo string `json:"reference_no" binding:"max=100"`
 }

@@ -108,6 +108,9 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	employeeSvc := service.NewEmployeeService(postgres.NewEmployeeRepo(deps.DB),
 		userRepo, membershipRepo, tenantRepo, objectStore, auditSvc, deps.Logger)
 	employeeHandler := v1.NewEmployeeHandler(employeeSvc)
+	loyaltySvc := service.NewLoyaltyService(postgres.NewCustomerRepo(deps.DB), auditSvc, deps.Logger)
+	orderSvc.SetLoyalty(loyaltySvc)
+	customerHandler := v1.NewCustomerHandler(loyaltySvc)
 
 	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler.Health)
@@ -283,6 +286,23 @@ func NewRouter(deps Dependencies) *gin.Engine {
 			middleware.RequirePermission(rbac.PermAttendanceRead), employeeHandler.ListAttendance)
 		empGroup.POST("/attendance/:id/approve",
 			middleware.RequirePermission(rbac.PermAttendanceApprove), employeeHandler.ApproveAttendance)
+	}
+
+	// ---- customer & loyalty routes ----
+	custRead := middleware.RequirePermission(rbac.PermCustomersRead)
+	custWrite := middleware.RequirePermission(rbac.PermCustomersWrite)
+	custGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant())
+	{
+		custGroup.GET("/customers", custRead, customerHandler.ListCustomers)
+		custGroup.GET("/customers/:id", custRead, customerHandler.GetCustomer)
+		custGroup.POST("/customers", custWrite, customerHandler.CreateCustomer)
+		custGroup.PUT("/customers/:id", custWrite, customerHandler.UpdateCustomer)
+		custGroup.DELETE("/customers/:id", custWrite, customerHandler.DeleteCustomer)
+		custGroup.GET("/customers/:id/loyalty", custRead, customerHandler.ListLoyaltyTransactions)
+
+		// Program configuration is manager+ (catalog:write), like promos.
+		custGroup.GET("/loyalty/settings", custRead, customerHandler.GetLoyaltySettings)
+		custGroup.PUT("/loyalty/settings", catalogWrite, customerHandler.UpdateLoyaltySettings)
 	}
 
 	// ---- super-admin routes ----

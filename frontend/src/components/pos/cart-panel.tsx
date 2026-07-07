@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgePercent, Minus, PauseCircle, Plus, ShoppingCart, SplitSquareHorizontal, Trash2 } from "lucide-react";
+import { BadgePercent, Minus, PauseCircle, Plus, ShoppingCart, SplitSquareHorizontal, Trash2, UserRound } from "lucide-react";
 
 import { formatCentavos } from "@/lib/currency";
 import { cartTotal, setLineQty, type CartLine } from "@/lib/pos-cart";
@@ -25,6 +25,8 @@ interface CartPanelProps {
   onTableNumberChange: (t: string) => void;
   discountPreview: number;
   promoLabel: string;
+  customerLabel: string;
+  onOpenCustomer: () => void;
   onOpenPromo: () => void;
   onSplit: () => void;
   onCharge: () => void;
@@ -41,6 +43,8 @@ export function CartPanel({
   onTableNumberChange,
   discountPreview,
   promoLabel,
+  customerLabel,
+  onOpenCustomer,
   onOpenPromo,
   onSplit,
   onCharge,
@@ -80,6 +84,18 @@ export function CartPanel({
           />
         </div>
       )}
+      <div className="px-3 pb-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={cn("w-full justify-start", customerLabel && "border-primary text-primary")}
+          onClick={onOpenCustomer}
+        >
+          <UserRound className="size-4" aria-hidden />
+          <span className="truncate">{customerLabel || "Attach customer"}</span>
+        </Button>
+      </div>
 
       <Separator />
 

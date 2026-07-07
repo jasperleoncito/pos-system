@@ -132,6 +132,10 @@ func (s *OrderService) PaySplit(ctx context.Context, tenantID, userID, orderID, 
 		}
 	}
 
+	if _, err := s.redeemPointsPayments(ctx, tenantID, userID, o, payments); err != nil {
+		return nil, err
+	}
+
 	for _, p := range payments {
 		payment := &order.Payment{
 			OrderID: orderID, SplitID: &split.ID, Method: p.Method, Amount: p.Amount,
@@ -173,6 +177,7 @@ func (s *OrderService) PaySplit(ctx context.Context, tenantID, userID, orderID, 
 			EntityType: "order", EntityID: orderID, After: map[string]any{"via": "split_bill"},
 		})
 		s.deductInventory(ctx, tenantID, userID, o)
+		s.awardLoyalty(ctx, tenantID, userID, orderID)
 	}
 	return s.orders.GetByID(ctx, tenantID, orderID)
 }
@@ -321,6 +326,11 @@ func (s *OrderService) Void(ctx context.Context, tenantID, userID, orderID, reas
 		if err := s.coupons.Release(ctx, tenantID, *o.CouponID, orderID); err != nil {
 			s.logger.Warn("failed to release coupon on void", "order_id", orderID, "error", err)
 		}
+	}
+
+	// Undo loyalty activity: earned points come back out, redeemed go back.
+	if s.loyalty != nil && o.CustomerID != nil {
+		s.loyalty.ReverseForOrder(ctx, tenantID, userID, orderID)
 	}
 
 	if err := s.orders.SetVoided(ctx, tenantID, orderID, userID, reason); err != nil {

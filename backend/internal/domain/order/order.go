@@ -24,12 +24,13 @@ const (
 	MethodCard         = "card"
 	MethodMaya         = "maya"
 	MethodBankTransfer = "bank_transfer"
+	MethodPoints       = "points" // loyalty redemption; requires an attached customer
 )
 
 // ValidMethod reports whether the payment method is supported.
 func ValidMethod(m string) bool {
 	switch m {
-	case MethodCash, MethodGCash, MethodCard, MethodMaya, MethodBankTransfer:
+	case MethodCash, MethodGCash, MethodCard, MethodMaya, MethodBankTransfer, MethodPoints:
 		return true
 	}
 	return false
@@ -172,10 +173,11 @@ type CashMovement struct {
 
 // Filter shapes order listing queries.
 type Filter struct {
-	Status string
-	Search string // order number
-	Limit  int
-	Offset int
+	Status     string
+	Search     string // order number
+	CustomerID string // purchase history for one customer
+	Limit      int
+	Offset     int
 }
 
 type Repository interface {

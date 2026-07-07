@@ -148,7 +148,10 @@ func run(ctx context.Context, db *pgxpool.Pool, logger *slog.Logger) error {
 	if err := seedInventory(ctx, db, teresa.ID, logger); err != nil {
 		return err
 	}
-	return seedEmployees(ctx, db, teresa.ID, logger)
+	if err := seedEmployees(ctx, db, teresa.ID, logger); err != nil {
+		return err
+	}
+	return seedCustomers(ctx, db, teresa.ID, logger)
 }
 
 // ensureUser fetches by email or creates when missing.

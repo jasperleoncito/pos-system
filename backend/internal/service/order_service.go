@@ -29,6 +29,7 @@ type OrderService struct {
 	coupons   promo.CouponRepository
 	hub       *realtime.Hub
 	inventory *InventoryService
+	loyalty   *LoyaltyService
 	auditor   *AuditService
 	logger    *slog.Logger
 }
@@ -36,6 +37,52 @@ type OrderService struct {
 // SetInventory attaches the inventory service after construction
 // (both live in this package; avoids a constructor cycle).
 func (s *OrderService) SetInventory(inv *InventoryService) { s.inventory = inv }
+
+// SetLoyalty attaches the loyalty service after construction.
+func (s *OrderService) SetLoyalty(l *LoyaltyService) { s.loyalty = l }
+
+// awardLoyalty credits earned points once an order completes. The earn
+// base excludes value paid with points themselves.
+func (s *OrderService) awardLoyalty(ctx context.Context, tenantID, userID, orderID string) {
+	if s.loyalty == nil {
+		return
+	}
+	o, err := s.orders.GetByID(ctx, tenantID, orderID)
+	if err != nil || o.CustomerID == nil {
+		return
+	}
+	var pointsValue int64
+	for _, p := range o.Payments {
+		if p.Method == order.MethodPoints {
+			pointsValue += p.Amount
+		}
+	}
+	s.loyalty.AwardForOrder(ctx, tenantID, userID, *o.CustomerID, orderID, o.Total-pointsValue)
+}
+
+// redeemPointsPayments deducts loyalty points for any "points" tender
+// lines before payments are recorded. Returns the total points value.
+func (s *OrderService) redeemPointsPayments(ctx context.Context, tenantID, userID string, o *order.Order, payments []PaymentInput) (int64, error) {
+	var pointsValue int64
+	for _, p := range payments {
+		if p.Method == order.MethodPoints {
+			pointsValue += p.Amount
+		}
+	}
+	if pointsValue == 0 {
+		return 0, nil
+	}
+	if s.loyalty == nil {
+		return 0, apperror.Validation("loyalty payments are not available")
+	}
+	if o.CustomerID == nil {
+		return 0, apperror.Validation("attach a customer before redeeming points")
+	}
+	if _, err := s.loyalty.RedeemForPayment(ctx, tenantID, userID, *o.CustomerID, o.ID, pointsValue); err != nil {
+		return 0, err
+	}
+	return pointsValue, nil
+}
 
 // deductInventory runs recipe deduction after an order completes.
 func (s *OrderService) deductInventory(ctx context.Context, tenantID, userID string, o *order.Order) {
@@ -83,6 +130,7 @@ type CreateOrderInput struct {
 	Hold        bool // park the order instead of opening it for payment
 	DiscountID  string
 	CouponCode  string
+	CustomerID  string // optional loyalty customer
 	Items       []CreateOrderItemInput
 }
 
@@ -129,6 +177,18 @@ func (s *OrderService) CreateOrder(ctx context.Context, tenantID, userID string,
 		return nil, apperror.Internal(err)
 	}
 
+	var customerID *string
+	if in.CustomerID != "" {
+		if s.loyalty == nil {
+			return nil, apperror.Validation("customers are not available")
+		}
+		c, err := s.loyalty.GetCustomer(ctx, tenantID, in.CustomerID)
+		if err != nil {
+			return nil, apperror.Validation("customer not found")
+		}
+		customerID = &c.ID
+	}
+
 	status := order.StatusOpen
 	if in.Hold {
 		status = order.StatusHeld
@@ -137,6 +197,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, tenantID, userID string,
 		OrderNumber:   number,
 		OrderType:     in.OrderType,
 		TableNumber:   in.TableNumber,
+		CustomerID:    customerID,
 		CashierUserID: userID,
 		Status:        status,
 		Subtotal:      subtotal,
@@ -334,6 +395,11 @@ func (s *OrderService) Pay(ctx context.Context, tenantID, userID, orderID string
 		}
 	}
 
+	// Points redemption deducts the balance before payments are booked.
+	if _, err := s.redeemPointsPayments(ctx, tenantID, userID, o, payments); err != nil {
+		return nil, err
+	}
+
 	for _, p := range payments {
 		payment := &order.Payment{
 			OrderID: orderID, Method: p.Method, Amount: p.Amount,
@@ -368,6 +434,7 @@ func (s *OrderService) Pay(ctx context.Context, tenantID, userID, orderID string
 		s.fireToKitchen(ctx, tenantID, o) // settled straight from hold
 	}
 	s.deductInventory(ctx, tenantID, userID, o)
+	s.awardLoyalty(ctx, tenantID, userID, orderID)
 	return s.orders.GetByID(ctx, tenantID, orderID)
 }
 
