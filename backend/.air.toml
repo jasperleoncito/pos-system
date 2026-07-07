@@ -1,0 +1,18 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o ./tmp/api ./cmd/api"
+bin = "./tmp/api"
+include_ext = ["go", "sql"]
+exclude_dir = ["tmp", "docs", "tests"]
+delay = 1000
+# Bind mounts from Windows do not emit inotify events; poll instead.
+poll = true
+poll_interval = 1000
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = true

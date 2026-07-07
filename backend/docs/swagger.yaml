@@ -1,0 +1,51 @@
+basePath: /api/v1
+definitions:
+  response.Envelope:
+    properties:
+      data: {}
+      message:
+        type: string
+      meta:
+        $ref: '#/definitions/response.Meta'
+      success:
+        type: boolean
+    type: object
+  response.Meta:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+    type: object
+info:
+  contact: {}
+  description: Multi-Tenant Restaurant POS & Business Management System API
+  title: POS System API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      description: Reports API liveness and dependency status (PostgreSQL, Redis,
+        MinIO)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Health check
+      tags:
+      - system
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
