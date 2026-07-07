@@ -101,6 +101,10 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	inventorySvc := service.NewInventoryService(postgres.NewInventoryRepo(deps.DB), auditSvc, deps.Logger)
 	orderSvc.SetInventory(inventorySvc)
 	inventoryHandler := v1.NewInventoryHandler(inventorySvc)
+	procureRepo := postgres.NewProcureRepo(deps.DB)
+	inventorySvc.SetAlertSink(procureRepo)
+	procureSvc := service.NewProcureService(procureRepo, inventorySvc, auditSvc, deps.Logger)
+	procureHandler := v1.NewProcureHandler(procureSvc)
 
 	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler.Health)
@@ -235,6 +239,19 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		invGroup.POST("/inventory/movements", invWrite, inventoryHandler.Move)
 		invGroup.GET("/products/:id/recipe", invRead, inventoryHandler.GetRecipe)
 		invGroup.PUT("/products/:id/recipe", invWrite, inventoryHandler.SaveRecipe)
+
+		invGroup.GET("/suppliers", invRead, procureHandler.ListSuppliers)
+		invGroup.POST("/suppliers", invWrite, procureHandler.CreateSupplier)
+		invGroup.PUT("/suppliers/:id", invWrite, procureHandler.UpdateSupplier)
+		invGroup.DELETE("/suppliers/:id", invWrite, procureHandler.DeleteSupplier)
+		invGroup.GET("/purchase-orders", invRead, procureHandler.ListPOs)
+		invGroup.GET("/purchase-orders/:id", invRead, procureHandler.GetPO)
+		invGroup.POST("/purchase-orders", invWrite, procureHandler.CreatePO)
+		invGroup.POST("/purchase-orders/:id/order", invWrite, procureHandler.OrderPO)
+		invGroup.POST("/purchase-orders/:id/cancel", invWrite, procureHandler.CancelPO)
+		invGroup.POST("/purchase-orders/:id/receive", invWrite, procureHandler.ReceivePO)
+		invGroup.GET("/inventory/alerts", invRead, procureHandler.ListAlerts)
+		invGroup.POST("/inventory/alerts/:id/ack", invWrite, procureHandler.AckAlert)
 	}
 
 	// ---- super-admin routes ----

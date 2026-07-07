@@ -2,7 +2,7 @@
 
 Full-PRD build (`first-prompt.md`) in sequential phases. The system must stay runnable after every phase; each phase ends with browser/API verification and one conventional commit.
 
-**Status: Phases 0–7 DONE ✅ · Continue from Phase 8 (Suppliers, POs, low-stock alerts).**
+**Status: Phases 0–8 DONE ✅ · Continue from Phase 9 (Employees, schedules, attendance).**
 
 ## Requirements beyond the PRD (user decisions)
 
@@ -42,8 +42,8 @@ Discounts + coupons (atomic max_uses redemption, released on void), order-level 
 ### ✅ Phase 7 — Inventory core
 Units/items/recipe_items (single-table BOM keyed by product_id)/inventory_movements. `InventoryRepo.Apply` = SELECT FOR UPDATE row lock + ledger insert with qty_before/after in one tx (no Redis lock needed). `DeductForOrder` idempotent via HasMovements(order, sale) — runs on Pay + PaySplit completion; failures logged, never block the sale. Routes under inventory:read/write; recipes GET/PUT /products/:id/recipe. Seed: kg/pcs/L units, 7 items, recipes for Katsudon/Pork Tapa/C2 Solo. UI: /inventory page (stock badges OK/Low/Out, move dialog stock_in/out/adjustment/waste with required reason, per-item history), RecipeDialog on products panel (ChefHat button). Verified: 2× Katsudon → Rice -0.4/Pork -0.3/Egg -2/Oil -0.1 with exact ledger chain; settle retry 422 no double-deduct; two concurrent payments deducted exactly once each.
 
-### ⬜ Phase 8 — Suppliers, purchase orders, low-stock alerts
-Suppliers CRUD; PO lifecycle draft→ordered→receive partial/full (movements + cost update); stock_alerts on reorder level; alerts list/acknowledge. UI: suppliers, PO builder, receive screen, low-stock dashboard widget.
+### ✅ Phase 8 — Suppliers, purchase orders, low-stock alerts
+Suppliers CRUD, PO lifecycle draft→ordered→partially_received→received (per-line receive → po_receive ledger movements + item cost update), cancel. stock_alerts raised by InventoryService.checkAlert after every movement (AlertSink interface → ProcureRepo; one open alert per item via partial unique index; out_of_stock vs low_stock). Routes under inventory:read/write. UI: /inventory/procurement page (PO + Suppliers tabs, receive dialog defaults to remaining), alerts banner with Acknowledge on /inventory. Verified: 10kg Rice PO received 6+4 with status transitions, stock 49→59, cost → ₱62; stock_out below reorder raised low_stock alert; ack cleared it.
 
 ### ⬜ Phase 9 — Employees, schedules, attendance
 Employees (optional user link, salary type/rate, photo via pipeline), weekly schedules with grace minutes, clock in/out (server time) computing late/early-out/overtime/breaks, manager approval, attendance reports. UI: directory + profile, schedule grid, big-button self-service clock page, review + report table.

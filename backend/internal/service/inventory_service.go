@@ -14,6 +14,7 @@ import (
 // InventoryService owns stock items, recipes, and the movement ledger.
 type InventoryService struct {
 	repo    inventory.Repository
+	alerts  AlertSink
 	auditor *AuditService
 	logger  *slog.Logger
 }
@@ -98,6 +99,7 @@ func (s *InventoryService) Move(ctx context.Context, tenantID, userID string, in
 	if err != nil {
 		return nil, err
 	}
+	s.checkAlert(ctx, tenantID, in.ItemID)
 	s.auditor.Record(audit.Log{
 		TenantID: tenantID, UserID: userID, Action: "inventory." + in.MovementType,
 		EntityType: "inventory_item", EntityID: in.ItemID,
@@ -164,7 +166,9 @@ func (s *InventoryService) DeductForOrder(ctx context.Context, tenantID, userID 
 			}); err != nil {
 				s.logger.Error("inventory deduction failed",
 					"order_id", o.ID, "item_id", ri.InventoryItemID, "error", err)
+				continue
 			}
+			s.checkAlert(ctx, tenantID, ri.InventoryItemID)
 		}
 	}
 }

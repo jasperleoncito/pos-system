@@ -1112,6 +1112,71 @@ const docTemplate = `{
                 }
             }
         },
+        "/inventory/alerts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "procurement"
+                ],
+                "summary": "List stock alerts",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Only unacknowledged",
+                        "name": "open",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/inventory/alerts/{id}/ack": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "procurement"
+                ],
+                "summary": "Acknowledge a stock alert",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/inventory/items": {
             "get": {
                 "security": [
@@ -2423,6 +2488,346 @@ const docTemplate = `{
                 }
             }
         },
+        "/purchase-orders": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "procurement"
+                ],
+                "summary": "List purchase orders",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "procurement"
+                ],
+                "summary": "Create a draft purchase order",
+                "parameters": [
+                    {
+                        "description": "Purchase order",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreatePORequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/purchase-orders/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "procurement"
+                ],
+                "summary": "Get one purchase order with lines",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "PO ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/purchase-orders/{id}/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "procurement"
+                ],
+                "summary": "Cancel a purchase order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "PO ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/purchase-orders/{id}/order": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "procurement"
+                ],
+                "summary": "Mark a draft PO as ordered",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "PO ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/purchase-orders/{id}/receive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "procurement"
+                ],
+                "summary": "Receive quantities against a PO (stock in + cost update)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "PO ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Received lines",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ReceivePORequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/suppliers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "procurement"
+                ],
+                "summary": "List suppliers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "procurement"
+                ],
+                "summary": "Create a supplier",
+                "parameters": [
+                    {
+                        "description": "Supplier",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SupplierRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/suppliers/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "procurement"
+                ],
+                "summary": "Update a supplier",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Supplier ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Supplier",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SupplierRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "procurement"
+                ],
+                "summary": "Delete a supplier",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Supplier ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/taxes": {
             "get": {
                 "security": [
@@ -2845,6 +3250,29 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.CreatePORequest": {
+            "type": "object",
+            "required": [
+                "items",
+                "supplier_id"
+            ],
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/dto.POItemInput"
+                    }
+                },
+                "notes": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "supplier_id": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.CreateSplitsRequest": {
             "type": "object",
             "required": [
@@ -3123,6 +3551,25 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.POItemInput": {
+            "type": "object",
+            "required": [
+                "item_id",
+                "qty"
+            ],
+            "properties": {
+                "item_id": {
+                    "type": "string"
+                },
+                "qty": {
+                    "type": "number"
+                },
+                "unit_cost": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            }
+        },
         "dto.PayOrderRequest": {
             "type": "object",
             "required": [
@@ -3227,6 +3674,36 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/dto.VariantInput"
+                    }
+                }
+            }
+        },
+        "dto.ReceiveLineInput": {
+            "type": "object",
+            "required": [
+                "po_item_id"
+            ],
+            "properties": {
+                "po_item_id": {
+                    "type": "string"
+                },
+                "qty": {
+                    "type": "number",
+                    "minimum": 0
+                }
+            }
+        },
+        "dto.ReceivePORequest": {
+            "type": "object",
+            "required": [
+                "lines"
+            ],
+            "properties": {
+                "lines": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/dto.ReceiveLineInput"
                     }
                 }
             }
@@ -3371,6 +3848,41 @@ const docTemplate = `{
                         "active",
                         "suspended"
                     ]
+                }
+            }
+        },
+        "dto.SupplierRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "address": {
+                    "type": "string",
+                    "maxLength": 300
+                },
+                "contact_person": {
+                    "type": "string",
+                    "maxLength": 120
+                },
+                "email": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "minLength": 1
+                },
+                "notes": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "phone": {
+                    "type": "string",
+                    "maxLength": 40
                 }
             }
         },

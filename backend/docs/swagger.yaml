@@ -87,6 +87,22 @@ definitions:
     - items
     - order_type
     type: object
+  dto.CreatePORequest:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/dto.POItemInput'
+        minItems: 1
+        type: array
+      notes:
+        maxLength: 500
+        type: string
+      supplier_id:
+        type: string
+    required:
+    - items
+    - supplier_id
+    type: object
   dto.CreateSplitsRequest:
     properties:
       amounts:
@@ -281,6 +297,19 @@ definitions:
     - product_id
     - qty
     type: object
+  dto.POItemInput:
+    properties:
+      item_id:
+        type: string
+      qty:
+        type: number
+      unit_cost:
+        minimum: 0
+        type: integer
+    required:
+    - item_id
+    - qty
+    type: object
   dto.PayOrderRequest:
     properties:
       payments:
@@ -356,6 +385,26 @@ definitions:
     required:
     - category_id
     - name
+    type: object
+  dto.ReceiveLineInput:
+    properties:
+      po_item_id:
+        type: string
+      qty:
+        minimum: 0
+        type: number
+    required:
+    - po_item_id
+    type: object
+  dto.ReceivePORequest:
+    properties:
+      lines:
+        items:
+          $ref: '#/definitions/dto.ReceiveLineInput'
+        minItems: 1
+        type: array
+    required:
+    - lines
     type: object
   dto.RecipeItemInput:
     properties:
@@ -456,6 +505,31 @@ definitions:
         type: string
     required:
     - status
+    type: object
+  dto.SupplierRequest:
+    properties:
+      address:
+        maxLength: 300
+        type: string
+      contact_person:
+        maxLength: 120
+        type: string
+      email:
+        type: string
+      is_active:
+        type: boolean
+      name:
+        maxLength: 120
+        minLength: 1
+        type: string
+      notes:
+        maxLength: 500
+        type: string
+      phone:
+        maxLength: 40
+        type: string
+    required:
+    - name
     type: object
   dto.SwitchTenantRequest:
     properties:
@@ -1289,6 +1363,45 @@ paths:
       summary: Health check
       tags:
       - system
+  /inventory/alerts:
+    get:
+      parameters:
+      - description: Only unacknowledged
+        in: query
+        name: open
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List stock alerts
+      tags:
+      - procurement
+  /inventory/alerts/{id}/ack:
+    post:
+      parameters:
+      - description: Alert ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Acknowledge a stock alert
+      tags:
+      - procurement
   /inventory/items:
     get:
       parameters:
@@ -2101,6 +2214,213 @@ paths:
       summary: Replace a product's recipe (BOM)
       tags:
       - inventory
+  /purchase-orders:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List purchase orders
+      tags:
+      - procurement
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Purchase order
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreatePORequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create a draft purchase order
+      tags:
+      - procurement
+  /purchase-orders/{id}:
+    get:
+      parameters:
+      - description: PO ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get one purchase order with lines
+      tags:
+      - procurement
+  /purchase-orders/{id}/cancel:
+    post:
+      parameters:
+      - description: PO ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Cancel a purchase order
+      tags:
+      - procurement
+  /purchase-orders/{id}/order:
+    post:
+      parameters:
+      - description: PO ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Mark a draft PO as ordered
+      tags:
+      - procurement
+  /purchase-orders/{id}/receive:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: PO ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Received lines
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ReceivePORequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Receive quantities against a PO (stock in + cost update)
+      tags:
+      - procurement
+  /suppliers:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List suppliers
+      tags:
+      - procurement
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Supplier
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SupplierRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create a supplier
+      tags:
+      - procurement
+  /suppliers/{id}:
+    delete:
+      parameters:
+      - description: Supplier ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete a supplier
+      tags:
+      - procurement
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Supplier ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Supplier
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SupplierRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update a supplier
+      tags:
+      - procurement
   /taxes:
     get:
       produces:

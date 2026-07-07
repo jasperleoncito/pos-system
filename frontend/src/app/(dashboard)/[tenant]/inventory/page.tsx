@@ -1,8 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDownUp, History, Loader2, Pencil, Plus, Search } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { ArrowDownUp, History, Loader2, Pencil, Plus, Search, Truck, TriangleAlert } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+
+import { api, getApiErrorMessage, type ApiEnvelope } from "@/lib/api";
 
 import {
   useApplyMovement,
@@ -62,8 +67,55 @@ const MOVE_TYPES = [
   { value: "waste", label: "Waste" },
 ];
 
+interface StockAlert {
+  id: string;
+  item_name: string;
+  alert_type: string;
+  stock_at_alert: number;
+}
+
+function AlertsBanner({ canWrite }: { canWrite: boolean }) {
+  const queryClient = useQueryClient();
+  const { data: alerts } = useQuery({
+    queryKey: ["inventory", "alerts"],
+    queryFn: async () =>
+      (await api.get<ApiEnvelope<StockAlert[] | null>>("/inventory/alerts?open=true")).data.data ?? [],
+  });
+  const ack = useMutation({
+    mutationFn: async (id: string) => api.post(`/inventory/alerts/${id}/ack`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["inventory", "alerts"] }),
+    onError: (e) => toast.error(getApiErrorMessage(e)),
+  });
+
+  if (!alerts || alerts.length === 0) return null;
+  return (
+    <div className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/40">
+      <p className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300">
+        <TriangleAlert className="size-4" aria-hidden />
+        {alerts.length} stock {alerts.length === 1 ? "alert" : "alerts"}
+      </p>
+      {alerts.map((a) => (
+        <div key={a.id} className="flex items-center justify-between gap-2 text-sm">
+          <span>
+            <span className="font-medium">{a.item_name}</span>{" "}
+            <span className="text-muted-foreground">
+              — {a.alert_type === "out_of_stock" ? "out of stock" : "low stock"} ({a.stock_at_alert} left)
+            </span>
+          </span>
+          {canWrite && (
+            <Button variant="ghost" size="sm" disabled={ack.isPending} onClick={() => ack.mutate(a.id)}>
+              Acknowledge
+            </Button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function InventoryPage() {
   const { auth } = useAuth();
+  const params = useParams<{ tenant: string }>();
   const canWrite = can(auth?.activeTenant?.role, "inventory:write");
 
   const [search, setSearch] = useState("");
@@ -154,7 +206,15 @@ export default function InventoryPage() {
         <p className="text-muted-foreground">Ingredients, stock levels, and movement history</p>
       </header>
 
+      <AlertsBanner canWrite={canWrite} />
+
       <div className="flex flex-wrap items-center gap-2">
+        <Button asChild variant="outline">
+          <Link href={`/${params.tenant}/inventory/procurement`}>
+            <Truck className="size-4" aria-hidden />
+            Suppliers & POs
+          </Link>
+        </Button>
         <div className="relative min-w-48 flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input placeholder="Search items…" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
