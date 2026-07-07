@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus, PauseCircle, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import { BadgePercent, Minus, PauseCircle, Plus, ShoppingCart, SplitSquareHorizontal, Trash2 } from "lucide-react";
 
 import { formatCentavos } from "@/lib/currency";
 import { cartTotal, setLineQty, type CartLine } from "@/lib/pos-cart";
@@ -23,6 +23,10 @@ interface CartPanelProps {
   onOrderTypeChange: (t: OrderType) => void;
   tableNumber: string;
   onTableNumberChange: (t: string) => void;
+  discountPreview: number;
+  promoLabel: string;
+  onOpenPromo: () => void;
+  onSplit: () => void;
   onCharge: () => void;
   onHold: () => void;
   isBusy: boolean;
@@ -35,11 +39,16 @@ export function CartPanel({
   onOrderTypeChange,
   tableNumber,
   onTableNumberChange,
+  discountPreview,
+  promoLabel,
+  onOpenPromo,
+  onSplit,
   onCharge,
   onHold,
   isBusy,
 }: CartPanelProps) {
-  const total = cartTotal(lines);
+  const subtotal = cartTotal(lines);
+  const total = Math.max(0, subtotal - discountPreview);
 
   return (
     <div className="flex h-full flex-col">
@@ -147,9 +156,41 @@ export function CartPanel({
 
       {/* Totals + actions */}
       <div className="space-y-3 border-t p-3">
+        {discountPreview > 0 && (
+          <div className="space-y-1 text-sm">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>Subtotal</span>
+              <span className="tabular-nums">{formatCentavos(subtotal)}</span>
+            </div>
+            <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-400">
+              <span>{promoLabel || "Discount"}</span>
+              <span className="tabular-nums">−{formatCentavos(discountPreview)}</span>
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between text-lg font-bold">
           <span>Total</span>
           <span className="tabular-nums">{formatCentavos(total)}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={lines.length === 0 || isBusy}
+            onClick={onOpenPromo}
+          >
+            <BadgePercent className="size-4" aria-hidden />
+            Promo
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={lines.length === 0 || isBusy}
+            onClick={onSplit}
+          >
+            <SplitSquareHorizontal className="size-4" aria-hidden />
+            Split bill
+          </Button>
         </div>
         <div className="grid grid-cols-[auto_1fr] gap-2">
           <Button

@@ -93,15 +93,15 @@ func (r *OrderRepo) Create(ctx context.Context, tenantID string, o *order.Order)
 
 const orderColumns = `o.id, o.tenant_id, o.order_number, o.order_type, o.table_number, o.customer_id,
 	o.cashier_user_id, o.status, o.kitchen_status, o.priority, o.subtotal, o.discount_total,
-	o.tax_total, o.total, o.tendered, o.change, o.notes, o.completed_at, o.voided_by, o.void_reason,
-	o.created_at, o.updated_at`
+	o.tax_total, o.total, o.tendered, o.change, o.notes, o.discount_id, o.coupon_id,
+	o.completed_at, o.voided_by, o.void_reason, o.created_at, o.updated_at`
 
 func scanOrder(row pgx.Row) (*order.Order, error) {
 	var o order.Order
 	err := row.Scan(&o.ID, &o.TenantID, &o.OrderNumber, &o.OrderType, &o.TableNumber, &o.CustomerID,
 		&o.CashierUserID, &o.Status, &o.KitchenStatus, &o.Priority, &o.Subtotal, &o.DiscountTotal,
-		&o.TaxTotal, &o.Total, &o.Tendered, &o.Change, &o.Notes, &o.CompletedAt, &o.VoidedBy, &o.VoidReason,
-		&o.CreatedAt, &o.UpdatedAt)
+		&o.TaxTotal, &o.Total, &o.Tendered, &o.Change, &o.Notes, &o.DiscountID, &o.CouponID,
+		&o.CompletedAt, &o.VoidedBy, &o.VoidReason, &o.CreatedAt, &o.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.NotFound("order")
 	}
@@ -126,6 +126,18 @@ func (r *OrderRepo) GetByID(ctx context.Context, tenantID, id string) (*order.Or
 		return nil, err
 	}
 	o.Payments = payments
+
+	splits, err := r.ListSplits(ctx, tenantID, o.ID)
+	if err != nil {
+		return nil, err
+	}
+	o.Splits = splits
+
+	refunds, err := r.ListRefunds(ctx, tenantID, o.ID)
+	if err != nil {
+		return nil, err
+	}
+	o.Refunds = refunds
 
 	// Cashier display name for receipts.
 	_ = r.db.QueryRow(ctx,
@@ -281,10 +293,10 @@ func (r *OrderRepo) AddStatusHistory(ctx context.Context, tenantID, orderID, fie
 
 func (r *OrderRepo) AddPayment(ctx context.Context, tenantID string, p *order.Payment) error {
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO payments (tenant_id, order_id, method, amount, reference_no, received_by)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO payments (tenant_id, order_id, split_id, method, amount, reference_no, received_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, status, created_at`,
-		tenantID, p.OrderID, p.Method, p.Amount, p.ReferenceNo, p.ReceivedBy,
+		tenantID, p.OrderID, p.SplitID, p.Method, p.Amount, p.ReferenceNo, p.ReceivedBy,
 	).Scan(&p.ID, &p.Status, &p.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to add payment: %w", err)
@@ -294,7 +306,7 @@ func (r *OrderRepo) AddPayment(ctx context.Context, tenantID string, p *order.Pa
 
 func (r *OrderRepo) ListPayments(ctx context.Context, tenantID, orderID string) ([]order.Payment, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, order_id, method, amount, reference_no, status, received_by, created_at
+		SELECT id, order_id, split_id, method, amount, reference_no, status, received_by, created_at
 		FROM payments
 		WHERE tenant_id = $1 AND order_id = $2 AND deleted_at IS NULL
 		ORDER BY created_at`, tenantID, orderID)
@@ -306,7 +318,7 @@ func (r *OrderRepo) ListPayments(ctx context.Context, tenantID, orderID string) 
 	var payments []order.Payment
 	for rows.Next() {
 		var p order.Payment
-		if err := rows.Scan(&p.ID, &p.OrderID, &p.Method, &p.Amount, &p.ReferenceNo, &p.Status, &p.ReceivedBy, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.OrderID, &p.SplitID, &p.Method, &p.Amount, &p.ReferenceNo, &p.Status, &p.ReceivedBy, &p.CreatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan payment: %w", err)
 		}
 		payments = append(payments, p)

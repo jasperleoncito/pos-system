@@ -10,6 +10,7 @@ import (
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/audit"
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/catalog"
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/order"
+	"github.com/jasperleoncito/pos-system/backend/internal/domain/promo"
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/tenant"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/apperror"
 )
@@ -17,29 +18,36 @@ import (
 // OrderService owns the sale lifecycle: create/hold/resume, payments,
 // completion, receipts, and the cash drawer.
 type OrderService struct {
-	orders   order.Repository
-	drawer   order.DrawerRepository
-	products catalog.ProductRepository
-	taxes    catalog.TaxRepository
-	settings tenant.SettingsRepository
-	tenants  tenant.Repository
-	auditor  *AuditService
-	logger   *slog.Logger
+	orders    order.Repository
+	drawer    order.DrawerRepository
+	products  catalog.ProductRepository
+	taxes     catalog.TaxRepository
+	settings  tenant.SettingsRepository
+	tenants   tenant.Repository
+	discounts promo.DiscountRepository
+	coupons   promo.CouponRepository
+	auditor   *AuditService
+	logger    *slog.Logger
 }
 
-func NewOrderService(
-	orders order.Repository,
-	drawer order.DrawerRepository,
-	products catalog.ProductRepository,
-	taxes catalog.TaxRepository,
-	settings tenant.SettingsRepository,
-	tenants tenant.Repository,
-	auditor *AuditService,
-	logger *slog.Logger,
-) *OrderService {
+type OrderServiceDeps struct {
+	Orders    order.Repository
+	Drawer    order.DrawerRepository
+	Products  catalog.ProductRepository
+	Taxes     catalog.TaxRepository
+	Settings  tenant.SettingsRepository
+	Tenants   tenant.Repository
+	Discounts promo.DiscountRepository
+	Coupons   promo.CouponRepository
+	Auditor   *AuditService
+	Logger    *slog.Logger
+}
+
+func NewOrderService(d OrderServiceDeps) *OrderService {
 	return &OrderService{
-		orders: orders, drawer: drawer, products: products, taxes: taxes,
-		settings: settings, tenants: tenants, auditor: auditor, logger: logger,
+		orders: d.Orders, drawer: d.Drawer, products: d.Products, taxes: d.Taxes,
+		settings: d.Settings, tenants: d.Tenants, discounts: d.Discounts, coupons: d.Coupons,
+		auditor: d.Auditor, logger: d.Logger,
 	}
 }
 
@@ -58,6 +66,8 @@ type CreateOrderInput struct {
 	TableNumber string
 	Notes       string
 	Hold        bool // park the order instead of opening it for payment
+	DiscountID  string
+	CouponCode  string
 	Items       []CreateOrderItemInput
 }
 
@@ -116,12 +126,18 @@ func (s *OrderService) CreateOrder(ctx context.Context, tenantID, userID string,
 		Status:        status,
 		Subtotal:      subtotal,
 		TaxTotal:      taxTotal,
-		Total:         subtotal, // discounts arrive in a later phase
+		Total:         subtotal,
 		Notes:         in.Notes,
 		Items:         items,
 	}
 	if err := s.orders.Create(ctx, tenantID, o); err != nil {
 		return nil, apperror.Internal(err)
+	}
+
+	if in.DiscountID != "" || in.CouponCode != "" {
+		if err := s.applyPromo(ctx, tenantID, o, in.DiscountID, in.CouponCode); err != nil {
+			return nil, err
+		}
 	}
 
 	s.auditor.Record(audit.Log{
@@ -269,23 +285,13 @@ func (s *OrderService) Pay(ctx context.Context, tenantID, userID, orderID string
 	if o.Status != order.StatusOpen && o.Status != order.StatusHeld {
 		return nil, apperror.Validation("this order has already been settled")
 	}
-	if len(payments) == 0 {
-		return nil, apperror.Validation("at least one payment is required")
+	if len(o.Splits) > 0 {
+		return nil, apperror.Validation("this order is split — settle each split instead")
 	}
 
-	var cashPaid, nonCashPaid int64
-	for _, p := range payments {
-		if !order.ValidMethod(p.Method) {
-			return nil, apperror.Validation("unsupported payment method: " + p.Method)
-		}
-		if p.Amount <= 0 {
-			return nil, apperror.Validation("payment amounts must be positive")
-		}
-		if p.Method == order.MethodCash {
-			cashPaid += p.Amount
-		} else {
-			nonCashPaid += p.Amount
-		}
+	cashPaid, nonCashPaid, err := sumPayments(payments)
+	if err != nil {
+		return nil, err
 	}
 
 	total := o.Total
@@ -317,21 +323,8 @@ func (s *OrderService) Pay(ctx context.Context, tenantID, userID, orderID string
 		}
 	}
 
-	if drawerSession != nil {
-		if err := s.drawer.AddMovement(ctx, tenantID, &order.CashMovement{
-			SessionID: drawerSession.ID, Type: "sale", Amount: cashPaid,
-			OrderID: &orderID, CreatedBy: userID,
-		}); err != nil {
-			return nil, apperror.Internal(err)
-		}
-		if change > 0 {
-			if err := s.drawer.AddMovement(ctx, tenantID, &order.CashMovement{
-				SessionID: drawerSession.ID, Type: "change", Amount: -change,
-				OrderID: &orderID, CreatedBy: userID,
-			}); err != nil {
-				return nil, apperror.Internal(err)
-			}
-		}
+	if err := s.recordCashSale(ctx, tenantID, userID, orderID, drawerSession, cashPaid, change); err != nil {
+		return nil, err
 	}
 
 	if err := s.orders.UpdatePaymentTotals(ctx, tenantID, orderID, tendered, change); err != nil {

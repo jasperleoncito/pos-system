@@ -78,9 +78,14 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		postgres.NewCategoryRepo(deps.DB), productRepo,
 		postgres.NewModifierRepo(deps.DB), taxRepo,
 		objectStore, auditSvc, deps.Logger)
-	orderSvc := service.NewOrderService(
-		postgres.NewOrderRepo(deps.DB), postgres.NewDrawerRepo(deps.DB),
-		productRepo, taxRepo, settingsRepo, tenantRepo, auditSvc, deps.Logger)
+	discountRepo := postgres.NewDiscountRepo(deps.DB)
+	couponRepo := postgres.NewCouponRepo(deps.DB)
+	promoSvc := service.NewPromoService(discountRepo, couponRepo, auditSvc)
+	orderSvc := service.NewOrderService(service.OrderServiceDeps{
+		Orders: postgres.NewOrderRepo(deps.DB), Drawer: postgres.NewDrawerRepo(deps.DB),
+		Products: productRepo, Taxes: taxRepo, Settings: settingsRepo, Tenants: tenantRepo,
+		Discounts: discountRepo, Coupons: couponRepo, Auditor: auditSvc, Logger: deps.Logger,
+	})
 
 	// ---- handlers ----
 	healthHandler := v1.NewHealthHandler(deps.DB, deps.Redis, deps.MinIO, deps.Config.MinIO.Bucket)
@@ -88,6 +93,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	tenantHandler := v1.NewTenantHandler(tenantSvc)
 	catalogHandler := v1.NewCatalogHandler(catalogSvc)
 	orderHandler := v1.NewOrderHandler(orderSvc, objectStore)
+	promoHandler := v1.NewPromoHandler(promoSvc)
 
 	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler.Health)
@@ -172,6 +178,25 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		orderGroup.POST("/cash-drawer/open", ordersCreate, orderHandler.OpenDrawer)
 		orderGroup.GET("/cash-drawer/current", ordersCreate, orderHandler.CurrentDrawer)
 		orderGroup.POST("/cash-drawer/close", ordersCreate, orderHandler.CloseDrawer)
+
+		// Split bills stay cashier-level; refunds and voids are manager+.
+		orderGroup.POST("/orders/:id/splits", ordersCreate, orderHandler.CreateSplits)
+		orderGroup.POST("/orders/:id/splits/:splitId/payments", ordersCreate, orderHandler.PaySplit)
+		orderGroup.POST("/orders/:id/refunds",
+			middleware.RequirePermission(rbac.PermOrdersRefund), orderHandler.Refund)
+		orderGroup.POST("/orders/:id/void",
+			middleware.RequirePermission(rbac.PermOrdersVoid), orderHandler.Void)
+
+		// Promo management (catalog:write); coupon validation for cashiers.
+		orderGroup.GET("/discounts", catalogRead, promoHandler.ListDiscounts)
+		orderGroup.POST("/discounts", catalogWrite, promoHandler.CreateDiscount)
+		orderGroup.PUT("/discounts/:id", catalogWrite, promoHandler.UpdateDiscount)
+		orderGroup.DELETE("/discounts/:id", catalogWrite, promoHandler.DeleteDiscount)
+		orderGroup.GET("/coupons", catalogWrite, promoHandler.ListCoupons)
+		orderGroup.POST("/coupons", catalogWrite, promoHandler.CreateCoupon)
+		orderGroup.PUT("/coupons/:id", catalogWrite, promoHandler.UpdateCoupon)
+		orderGroup.DELETE("/coupons/:id", catalogWrite, promoHandler.DeleteCoupon)
+		orderGroup.POST("/coupons/validate", ordersCreate, promoHandler.ValidateCoupon)
 	}
 
 	// ---- super-admin routes ----

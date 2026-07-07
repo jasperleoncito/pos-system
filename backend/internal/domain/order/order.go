@@ -65,6 +65,8 @@ type Order struct {
 	Tendered      int64      `json:"tendered"`
 	Change        int64      `json:"change"`
 	Notes         string     `json:"notes"`
+	DiscountID    *string    `json:"discount_id,omitempty"`
+	CouponID      *string    `json:"coupon_id,omitempty"`
 	CompletedAt   *time.Time `json:"completed_at"`
 	VoidedBy      *string    `json:"voided_by,omitempty"`
 	VoidReason    string     `json:"void_reason,omitempty"`
@@ -73,6 +75,36 @@ type Order struct {
 
 	Items    []Item    `json:"items,omitempty"`
 	Payments []Payment `json:"payments,omitempty"`
+	Splits   []Split   `json:"splits,omitempty"`
+	Refunds  []Refund  `json:"refunds,omitempty"`
+}
+
+type Split struct {
+	ID          string    `json:"id"`
+	OrderID     string    `json:"order_id"`
+	SplitNumber int       `json:"split_number"`
+	Amount      int64     `json:"amount"`
+	Status      string    `json:"status"` // pending | paid
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type Refund struct {
+	ID           string       `json:"id"`
+	OrderID      string       `json:"order_id"`
+	RefundNumber int64        `json:"refund_number"`
+	Reason       string       `json:"reason"`
+	Amount       int64        `json:"amount"`
+	RefundedBy   string       `json:"refunded_by"`
+	CreatedAt    time.Time    `json:"created_at"`
+	Items        []RefundItem `json:"items,omitempty"`
+}
+
+type RefundItem struct {
+	ID          string `json:"id"`
+	RefundID    string `json:"refund_id"`
+	OrderItemID string `json:"order_item_id"`
+	Qty         int    `json:"qty"`
+	Amount      int64  `json:"amount"`
 }
 
 type Item struct {
@@ -104,6 +136,7 @@ type ItemModifier struct {
 type Payment struct {
 	ID          string    `json:"id"`
 	OrderID     string    `json:"order_id"`
+	SplitID     *string   `json:"split_id,omitempty"`
 	Method      string    `json:"method"`
 	Amount      int64     `json:"amount"`
 	ReferenceNo string    `json:"reference_no"`
@@ -157,6 +190,21 @@ type Repository interface {
 
 	AddPayment(ctx context.Context, tenantID string, p *Payment) error
 	ListPayments(ctx context.Context, tenantID, orderID string) ([]Payment, error)
+
+	// UpdatePromo stores the applied discount/coupon and new totals.
+	UpdatePromo(ctx context.Context, tenantID, id string, discountID, couponID *string, discountTotal, total int64) error
+	SetVoided(ctx context.Context, tenantID, id, voidedBy, reason string) error
+
+	CreateSplits(ctx context.Context, tenantID, orderID string, amounts []int64) ([]Split, error)
+	ListSplits(ctx context.Context, tenantID, orderID string) ([]Split, error)
+	GetSplit(ctx context.Context, tenantID, splitID string) (*Split, error)
+	MarkSplitPaid(ctx context.Context, tenantID, splitID string) error
+
+	NextRefundNumber(ctx context.Context, tenantID string) (int64, error)
+	CreateRefund(ctx context.Context, tenantID string, r *Refund) error
+	ListRefunds(ctx context.Context, tenantID, orderID string) ([]Refund, error)
+	// RefundedTotal is the amount already refunded on an order.
+	RefundedTotal(ctx context.Context, tenantID, orderID string) (int64, error)
 }
 
 type DrawerRepository interface {

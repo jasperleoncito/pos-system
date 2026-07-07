@@ -23,8 +23,47 @@ definitions:
         minimum: 0
         type: integer
     type: object
+  dto.CouponRequest:
+    properties:
+      amount_value:
+        minimum: 0
+        type: integer
+      code:
+        maxLength: 40
+        minLength: 2
+        type: string
+      discount_type:
+        enum:
+        - percent
+        - fixed
+        type: string
+      is_active:
+        type: boolean
+      max_uses:
+        minimum: 0
+        type: integer
+      min_order_amount:
+        minimum: 0
+        type: integer
+      percent_value:
+        maximum: 100
+        minimum: 0
+        type: number
+      valid_from:
+        type: string
+      valid_to:
+        type: string
+    required:
+    - code
+    - discount_type
+    type: object
   dto.CreateOrderRequest:
     properties:
+      coupon_code:
+        maxLength: 40
+        type: string
+      discount_id:
+        type: string
       hold:
         type: boolean
       items:
@@ -47,6 +86,42 @@ definitions:
     required:
     - items
     - order_type
+    type: object
+  dto.CreateSplitsRequest:
+    properties:
+      amounts:
+        items:
+          type: integer
+        minItems: 2
+        type: array
+    required:
+    - amounts
+    type: object
+  dto.DiscountRequest:
+    properties:
+      amount_value:
+        minimum: 0
+        type: integer
+      is_active:
+        type: boolean
+      name:
+        maxLength: 120
+        minLength: 1
+        type: string
+      percent_value:
+        maximum: 100
+        minimum: 0
+        type: number
+      requires_approval:
+        type: boolean
+      type:
+        enum:
+        - percent
+        - fixed
+        type: string
+    required:
+    - name
+    - type
     type: object
   dto.ForgotPasswordRequest:
     properties:
@@ -219,6 +294,33 @@ definitions:
     required:
     - refresh_token
     type: object
+  dto.RefundItemRequest:
+    properties:
+      order_item_id:
+        type: string
+      qty:
+        minimum: 1
+        type: integer
+    required:
+    - order_item_id
+    - qty
+    type: object
+  dto.RefundRequest:
+    properties:
+      amount:
+        minimum: 0
+        type: integer
+      items:
+        items:
+          $ref: '#/definitions/dto.RefundItemRequest'
+        type: array
+      reason:
+        maxLength: 300
+        minLength: 3
+        type: string
+    required:
+    - reason
+    type: object
   dto.RegisterRequest:
     properties:
       business_name:
@@ -331,6 +433,17 @@ definitions:
     - primary_color
     - secondary_color
     type: object
+  dto.ValidateCouponRequest:
+    properties:
+      code:
+        type: string
+      subtotal:
+        minimum: 1
+        type: integer
+    required:
+    - code
+    - subtotal
+    type: object
   dto.VariantInput:
     properties:
       name:
@@ -351,6 +464,15 @@ definitions:
         type: string
     required:
     - token
+    type: object
+  dto.VoidRequest:
+    properties:
+      reason:
+        maxLength: 300
+        minLength: 3
+        type: string
+    required:
+    - reason
     type: object
   response.Envelope:
     properties:
@@ -855,6 +977,199 @@ paths:
       summary: Update a menu category
       tags:
       - catalog
+  /coupons:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List coupons
+      tags:
+      - promos
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Coupon
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CouponRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create a coupon
+      tags:
+      - promos
+  /coupons/{id}:
+    delete:
+      parameters:
+      - description: Coupon ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete a coupon
+      tags:
+      - promos
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Coupon ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Coupon
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CouponRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update a coupon
+      tags:
+      - promos
+  /coupons/validate:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Code and subtotal
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ValidateCouponRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Validate a coupon code against a subtotal (no redemption)
+      tags:
+      - promos
+  /discounts:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List discounts
+      tags:
+      - promos
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Discount
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.DiscountRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create a discount
+      tags:
+      - promos
+  /discounts/{id}:
+    delete:
+      parameters:
+      - description: Discount ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete a discount
+      tags:
+      - promos
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Discount ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Discount
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.DiscountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update a discount
+      tags:
+      - promos
   /health:
     get:
       description: Reports API liveness and dependency status (PostgreSQL, Redis,
@@ -1107,6 +1422,123 @@ paths:
       security:
       - BearerAuth: []
       summary: Get printable receipt data (order + branding)
+      tags:
+      - orders
+  /orders/{id}/refunds:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Refund details
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefundRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Refund a completed order (full, by items, or custom amount)
+      tags:
+      - orders
+  /orders/{id}/splits:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Split amounts (centavos, must sum to total)
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateSplitsRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Split an unpaid order into per-person amounts
+      tags:
+      - orders
+  /orders/{id}/splits/{splitId}/payments:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Split ID
+        in: path
+        name: splitId
+        required: true
+        type: string
+      - description: Payments
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PayOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Settle one split of a split-billed order
+      tags:
+      - orders
+  /orders/{id}/void:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Void reason
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.VoidRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Void an order (manager only; cash returned, coupon released)
       tags:
       - orders
   /products:

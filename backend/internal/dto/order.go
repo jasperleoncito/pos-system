@@ -13,6 +13,8 @@ type CreateOrderRequest struct {
 	TableNumber string             `json:"table_number" binding:"max=20"`
 	Notes       string             `json:"notes" binding:"max=500"`
 	Hold        bool               `json:"hold"`
+	DiscountID  string             `json:"discount_id" binding:"omitempty,uuid"`
+	CouponCode  string             `json:"coupon_code" binding:"max=40"`
 	Items       []OrderItemRequest `json:"items" binding:"required,min=1,dive"`
 }
 

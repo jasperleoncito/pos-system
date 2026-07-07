@@ -18,12 +18,15 @@ import {
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types/catalog";
 import type { Order, OrderType, PaymentLineInput } from "@/types/order";
+import { applyPromo } from "@/types/promo";
 import { CartPanel } from "@/components/pos/cart-panel";
 import { DrawerDialog } from "@/components/pos/drawer-dialog";
 import { HeldOrdersSheet } from "@/components/pos/held-orders-sheet";
 import { PaymentDialog } from "@/components/pos/payment-dialog";
 import { ProductOptionsDialog } from "@/components/pos/product-options-dialog";
+import { PromoDialog, type AppliedPromo } from "@/components/pos/promo-dialog";
 import { ReceiptDialog } from "@/components/pos/receipt-dialog";
+import { SplitBillDialog } from "@/components/pos/split-bill-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +47,9 @@ export default function POSPage() {
   const [receiptOrderId, setReceiptOrderId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [promo, setPromo] = useState<AppliedPromo>({});
+  const [splittingOrder, setSplittingOrder] = useState<Order | null>(null);
 
   const { data: categories } = useCategories(true);
   const { data: productData, isLoading } = useProducts({
@@ -57,7 +63,27 @@ export default function POSPage() {
   const payOrder = usePayOrder();
 
   const products = useMemo(() => productData?.products ?? [], [productData]);
-  const total = payingOrder ? payingOrder.total : cartTotal(lines);
+  const subtotal = cartTotal(lines);
+
+  // Client-side promo preview; the server recomputes on order creation.
+  const discountPreview = useMemo(() => {
+    let discount = 0;
+    if (promo.discount) {
+      discount += applyPromo(
+        promo.discount.type,
+        promo.discount.percent_value,
+        promo.discount.amount_value,
+        subtotal,
+      );
+    }
+    if (promo.couponAmount) {
+      discount += Math.min(promo.couponAmount, subtotal - discount);
+    }
+    return discount;
+  }, [promo, subtotal]);
+
+  const promoLabel = [promo.discount?.name, promo.couponCode].filter(Boolean).join(" + ");
+  const total = payingOrder ? payingOrder.total : Math.max(0, subtotal - discountPreview);
   const itemCount = lines.reduce((n, l) => n + l.qty, 0);
   const isBusy = createOrder.isPending || payOrder.isPending;
 
@@ -74,7 +100,18 @@ export default function POSPage() {
     setTableNumber("");
     setPayingOrder(null);
     setMobileCartOpen(false);
+    setPromo({});
   };
+
+  const orderPayload = (hold: boolean) => ({
+    order_type: orderType,
+    table_number: tableNumber.trim(),
+    notes: "",
+    hold,
+    discount_id: promo.discount?.id,
+    coupon_code: promo.couponCode,
+    items: toOrderItems(lines),
+  });
 
   const onCharge = () => {
     if (orderType === "dine_in" && !tableNumber.trim() && !payingOrder) {
@@ -85,21 +122,26 @@ export default function POSPage() {
   };
 
   const onHold = () => {
-    createOrder.mutate(
-      {
-        order_type: orderType,
-        table_number: tableNumber.trim(),
-        notes: "",
-        hold: true,
-        items: toOrderItems(lines),
+    createOrder.mutate(orderPayload(true), {
+      onSuccess: (order) => {
+        toast.success(`Order #${order.order_number} held`);
+        resetSale();
       },
-      {
-        onSuccess: (order) => {
-          toast.success(`Order #${order.order_number} held`);
-          resetSale();
-        },
+    });
+  };
+
+  const onSplit = () => {
+    if (orderType === "dine_in" && !tableNumber.trim()) {
+      toast.error("Enter the table number for dine-in orders");
+      return;
+    }
+    // The order is created first; splits are attached in the dialog.
+    createOrder.mutate(orderPayload(false), {
+      onSuccess: (order) => {
+        setSplittingOrder(order);
+        setMobileCartOpen(false);
       },
-    );
+    });
   };
 
   const settle = (orderId: string, payments: PaymentLineInput[]) => {
@@ -120,16 +162,9 @@ export default function POSPage() {
       settle(payingOrder.id, payments);
       return;
     }
-    createOrder.mutate(
-      {
-        order_type: orderType,
-        table_number: tableNumber.trim(),
-        notes: "",
-        hold: false,
-        items: toOrderItems(lines),
-      },
-      { onSuccess: (order) => settle(order.id, payments) },
-    );
+    createOrder.mutate(orderPayload(false), {
+      onSuccess: (order) => settle(order.id, payments),
+    });
   };
 
   const cartPanel = (
@@ -140,6 +175,10 @@ export default function POSPage() {
       onOrderTypeChange={setOrderType}
       tableNumber={tableNumber}
       onTableNumberChange={setTableNumber}
+      discountPreview={discountPreview}
+      promoLabel={promoLabel}
+      onOpenPromo={() => setPromoOpen(true)}
+      onSplit={onSplit}
       onCharge={onCharge}
       onHold={onHold}
       isBusy={isBusy}
@@ -299,6 +338,22 @@ export default function POSPage() {
       />
       <ReceiptDialog orderId={receiptOrderId} onClose={() => setReceiptOrderId(null)} />
       <DrawerDialog open={drawerOpen} onOpenChange={setDrawerOpen} />
+      <PromoDialog
+        open={promoOpen}
+        onOpenChange={setPromoOpen}
+        subtotal={subtotal}
+        applied={promo}
+        onApply={setPromo}
+      />
+      <SplitBillDialog
+        order={splittingOrder}
+        onClose={() => setSplittingOrder(null)}
+        onCompleted={(orderId) => {
+          setSplittingOrder(null);
+          resetSale();
+          setReceiptOrderId(orderId);
+        }}
+      />
     </div>
   );
 }

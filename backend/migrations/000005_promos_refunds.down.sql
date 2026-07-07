@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS refund_items;
+DROP TABLE IF EXISTS refunds;
+ALTER TABLE payments DROP COLUMN IF EXISTS split_id;
+DROP TABLE IF EXISTS order_splits;
+ALTER TABLE orders DROP COLUMN IF EXISTS coupon_id;
+ALTER TABLE orders DROP COLUMN IF EXISTS discount_id;
+DROP TABLE IF EXISTS coupon_redemptions;
+DROP TABLE IF EXISTS coupons;
+DROP TABLE IF EXISTS discounts;

@@ -1,4 +1,5 @@
 import {
+  BadgePercent,
   BarChart3,
   CalendarClock,
   ChefHat,
@@ -27,6 +28,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Kitchen", segment: "kitchen", icon: ChefHat, permission: "kitchen:read" },
   { label: "Orders", segment: "orders", icon: UtensilsCrossed, permission: "orders:read" },
   { label: "Menu", segment: "menu", icon: UtensilsCrossed, permission: "catalog:read" },
+  { label: "Promos", segment: "promos", icon: BadgePercent, permission: "catalog:write" },
   { label: "Inventory", segment: "inventory", icon: Package, permission: "inventory:read" },
   { label: "Customers", segment: "customers", icon: UserRound, permission: "customers:read" },
   { label: "Employees", segment: "employees", icon: UsersRound, permission: "employees:read" },

@@ -49,7 +49,8 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 
 	o, err := h.orders.CreateOrder(c.Request.Context(), tenantID, userID, service.CreateOrderInput{
 		OrderType: req.OrderType, TableNumber: req.TableNumber,
-		Notes: req.Notes, Hold: req.Hold, Items: items,
+		Notes: req.Notes, Hold: req.Hold, DiscountID: req.DiscountID,
+		CouponCode: req.CouponCode, Items: items,
 	})
 	if err != nil {
 		respondError(c, err)

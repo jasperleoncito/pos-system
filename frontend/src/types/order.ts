@@ -35,6 +35,24 @@ export interface Payment {
   created_at: string;
 }
 
+export interface OrderSplit {
+  id: string;
+  order_id: string;
+  split_number: number;
+  amount: number;
+  status: "pending" | "paid";
+  created_at: string;
+}
+
+export interface OrderRefund {
+  id: string;
+  order_id: string;
+  refund_number: number;
+  reason: string;
+  amount: number;
+  created_at: string;
+}
+
 export interface Order {
   id: string;
   order_number: number;
@@ -52,10 +70,13 @@ export interface Order {
   tendered: number;
   change: number;
   notes: string;
+  void_reason?: string;
   completed_at: string | null;
   created_at: string;
   items?: OrderItem[];
   payments?: Payment[];
+  splits?: OrderSplit[];
+  refunds?: OrderRefund[];
 }
 
 export interface ReceiptBusiness {
