@@ -8,6 +8,7 @@ import { LogOut, Menu, MonitorSmartphone, Moon, Sun } from "lucide-react";
 import type { AuthState } from "@/lib/auth-store";
 import { useLogout } from "@/hooks/use-auth";
 import { AppSidebar } from "@/components/layout/app-sidebar";
+import { NotificationsBell } from "@/components/layout/notifications-bell";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,6 +57,8 @@ export function Topbar({ auth, tenantSlug }: TopbarProps) {
       </Sheet>
 
       <div className="flex-1" />
+
+      <NotificationsBell tenantSlug={tenantSlug} />
 
       <Button
         variant="ghost"

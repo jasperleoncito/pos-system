@@ -75,7 +75,9 @@ type Repository interface {
 	UpdatePOStatus(ctx context.Context, tenantID, id, status string, receivedAt *time.Time) error
 	UpdatePOItemReceived(ctx context.Context, tenantID, poItemID string, qtyReceived float64) error
 
-	EnsureAlert(ctx context.Context, tenantID, itemID, alertType string, stock float64) error
+	// EnsureAlert opens an alert if none is open; created reports whether
+	// a new row was inserted (used to trigger notifications exactly once).
+	EnsureAlert(ctx context.Context, tenantID, itemID, alertType string, stock float64) (created bool, err error)
 	ListAlerts(ctx context.Context, tenantID string, openOnly bool) ([]Alert, error)
 	AckAlert(ctx context.Context, tenantID, alertID, userID string) error
 }

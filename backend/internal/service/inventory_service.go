@@ -15,9 +15,13 @@ import (
 type InventoryService struct {
 	repo    inventory.Repository
 	alerts  AlertSink
+	jobs    Jobs
 	auditor *AuditService
 	logger  *slog.Logger
 }
+
+// SetJobs wires the background queue for low-stock notifications.
+func (s *InventoryService) SetJobs(jobs Jobs) { s.jobs = jobs }
 
 func NewInventoryService(repo inventory.Repository, auditor *AuditService, logger *slog.Logger) *InventoryService {
 	return &InventoryService{repo: repo, auditor: auditor, logger: logger}

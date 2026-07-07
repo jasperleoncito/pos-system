@@ -13,6 +13,7 @@ import (
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/tenant"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/apperror"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/imageproc"
+	"github.com/jasperleoncito/pos-system/backend/internal/pkg/queue"
 )
 
 // EmployeeService owns staff profiles, weekly schedules, and attendance.
@@ -23,9 +24,13 @@ type EmployeeService struct {
 	memberships tenant.MembershipRepository
 	tenants     tenant.Repository
 	store       storage.ObjectStorage
+	jobs        Jobs
 	auditor     *AuditService
 	logger      *slog.Logger
 }
+
+// SetJobs wires the background queue for late-clock-in alerts.
+func (s *EmployeeService) SetJobs(jobs Jobs) { s.jobs = jobs }
 
 func NewEmployeeService(
 	repo employee.Repository,
@@ -369,6 +374,16 @@ func (s *EmployeeService) ClockIn(ctx context.Context, tenantID, userID string) 
 	}
 	s.auditor.Record(audit.Log{TenantID: tenantID, UserID: userID, Action: "attendance.clock_in",
 		EntityType: "attendance", EntityID: a.ID, After: map[string]any{"late_minutes": a.LateMinutes}})
+
+	// Late arrivals ping the managers, off the hot path.
+	if a.LateMinutes > 0 && s.jobs != nil {
+		if err := s.jobs.EnqueueAttendanceAlert(queue.AttendanceAlertPayload{
+			TenantID: tenantID, EmployeeName: e.FullName, LateMinutes: a.LateMinutes,
+			ClockInLocal: now.Format("Jan 2 3:04 PM"),
+		}); err != nil {
+			s.logger.Warn("failed to enqueue attendance alert", "employee", e.FullName, "error", err)
+		}
+	}
 	return a, nil
 }
 

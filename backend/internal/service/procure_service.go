@@ -9,6 +9,7 @@ import (
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/inventory"
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/procure"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/apperror"
+	"github.com/jasperleoncito/pos-system/backend/internal/pkg/queue"
 )
 
 // ProcureService owns suppliers, purchase orders, and stock alerts.
@@ -213,7 +214,7 @@ func (s *ProcureService) AckAlert(ctx context.Context, tenantID, userID, alertID
 
 // AlertSink lets the inventory service raise alerts without a cycle.
 type AlertSink interface {
-	EnsureAlert(ctx context.Context, tenantID, itemID, alertType string, stock float64) error
+	EnsureAlert(ctx context.Context, tenantID, itemID, alertType string, stock float64) (created bool, err error)
 }
 
 // ReceiveStock books PO stock into the ledger and refreshes unit cost.
@@ -249,9 +250,25 @@ func (s *InventoryService) checkAlert(ctx context.Context, tenantID, itemID stri
 	if err != nil {
 		return
 	}
+	alertType := ""
 	if item.CurrentStock <= 0 {
-		_ = s.alerts.EnsureAlert(ctx, tenantID, itemID, "out_of_stock", item.CurrentStock)
+		alertType = "out_of_stock"
 	} else if item.CurrentStock <= item.ReorderLevel && item.ReorderLevel > 0 {
-		_ = s.alerts.EnsureAlert(ctx, tenantID, itemID, "low_stock", item.CurrentStock)
+		alertType = "low_stock"
+	}
+	if alertType == "" {
+		return
+	}
+	created, err := s.alerts.EnsureAlert(ctx, tenantID, itemID, alertType, item.CurrentStock)
+	if err != nil || !created {
+		return
+	}
+	// A freshly opened alert notifies managers once, off the hot path.
+	if s.jobs != nil {
+		if err := s.jobs.EnqueueLowStock(queue.LowStockPayload{
+			TenantID: tenantID, ItemName: item.Name, Stock: item.CurrentStock, AlertType: alertType,
+		}); err != nil {
+			s.logger.Warn("failed to enqueue low-stock notification", "item", item.Name, "error", err)
+		}
 	}
 }

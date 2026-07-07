@@ -202,16 +202,16 @@ func (r *ProcureRepo) UpdatePOItemReceived(ctx context.Context, tenantID, poItem
 
 // ---- alerts ----
 
-func (r *ProcureRepo) EnsureAlert(ctx context.Context, tenantID, itemID, alertType string, stock float64) error {
-	_, err := r.db.Exec(ctx, `
+func (r *ProcureRepo) EnsureAlert(ctx context.Context, tenantID, itemID, alertType string, stock float64) (bool, error) {
+	tag, err := r.db.Exec(ctx, `
 		INSERT INTO stock_alerts (tenant_id, item_id, alert_type, stock_at_alert)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (tenant_id, item_id) WHERE acknowledged_at IS NULL DO NOTHING`,
 		tenantID, itemID, alertType, stock)
 	if err != nil {
-		return fmt.Errorf("failed to ensure alert: %w", err)
+		return false, fmt.Errorf("failed to ensure alert: %w", err)
 	}
-	return nil
+	return tag.RowsAffected() > 0, nil
 }
 
 func (r *ProcureRepo) ListAlerts(ctx context.Context, tenantID string, openOnly bool) ([]procure.Alert, error) {

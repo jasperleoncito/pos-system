@@ -15,7 +15,7 @@ import (
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/rbac"
 	v1 "github.com/jasperleoncito/pos-system/backend/internal/handler/v1"
 	"github.com/jasperleoncito/pos-system/backend/internal/middleware"
-	"github.com/jasperleoncito/pos-system/backend/internal/pkg/mailer"
+	"github.com/jasperleoncito/pos-system/backend/internal/pkg/queue"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/response"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/token"
 	"github.com/jasperleoncito/pos-system/backend/internal/realtime"
@@ -53,8 +53,9 @@ func NewRouter(deps Dependencies) *gin.Engine {
 
 	// ---- shared packages ----
 	tokens := token.NewManager(deps.Config.JWT.Secret, deps.Config.JWT.AccessTokenTTL, deps.Config.JWT.RefreshTokenTTL)
-	mail := mailer.New(deps.Config.SMTP.Host, deps.Config.SMTP.Port, deps.Config.SMTP.User,
-		deps.Config.SMTP.Password, deps.Config.SMTP.From)
+	// Transactional mail goes onto the asynq queue; cmd/worker delivers
+	// it over SMTP so the API never blocks on a mail server.
+	jobQueue := queue.NewClient(deps.Config.Redis.Addr, deps.Config.Redis.Password)
 
 	// ---- repositories ----
 	userRepo := postgres.NewUserRepo(deps.DB)
@@ -70,7 +71,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	auditSvc := service.NewAuditService(auditRepo, deps.Logger)
 	authSvc := service.NewAuthService(service.AuthServiceDeps{
 		Users: userRepo, Sessions: sessionRepo, Tenants: tenantRepo, Settings: settingsRepo,
-		Memberships: membershipRepo, Tokens: tokens, OTP: otpStore, Mailer: mail,
+		Memberships: membershipRepo, Tokens: tokens, OTP: otpStore, Mailer: jobQueue,
 		Auditor: auditSvc, Logger: deps.Logger, AppBaseURL: deps.Config.HTTP.CORSOrigins,
 	})
 	tenantSvc := service.NewTenantService(tenantRepo, settingsRepo, objectStore, auditSvc, deps.Logger)
@@ -99,6 +100,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	promoHandler := v1.NewPromoHandler(promoSvc)
 	kitchenHandler := v1.NewKitchenHandler(orderSvc, deps.Hub, tokens)
 	inventorySvc := service.NewInventoryService(postgres.NewInventoryRepo(deps.DB), auditSvc, deps.Logger)
+	inventorySvc.SetJobs(jobQueue)
 	orderSvc.SetInventory(inventorySvc)
 	inventoryHandler := v1.NewInventoryHandler(inventorySvc)
 	procureRepo := postgres.NewProcureRepo(deps.DB)
@@ -107,6 +109,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	procureHandler := v1.NewProcureHandler(procureSvc)
 	employeeSvc := service.NewEmployeeService(postgres.NewEmployeeRepo(deps.DB),
 		userRepo, membershipRepo, tenantRepo, objectStore, auditSvc, deps.Logger)
+	employeeSvc.SetJobs(jobQueue)
 	employeeHandler := v1.NewEmployeeHandler(employeeSvc)
 	loyaltySvc := service.NewLoyaltyService(postgres.NewCustomerRepo(deps.DB), auditSvc, deps.Logger)
 	orderSvc.SetLoyalty(loyaltySvc)
@@ -118,6 +121,8 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	reportSvc := service.NewReportService(postgres.NewReportRepo(deps.DB), analyticsSvc,
 		tenantRepo, settingsRepo, objectStore, deps.Logger)
 	reportHandler := v1.NewReportHandler(reportSvc)
+	notificationSvc := service.NewNotificationService(postgres.NewNotificationRepo(deps.DB))
+	notificationHandler := v1.NewNotificationHandler(notificationSvc)
 
 	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler.Health)
@@ -330,6 +335,16 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	{
 		reportsGroup.GET("", reportHandler.ListReportTypes)
 		reportsGroup.GET("/:type", reportHandler.GetReport)
+	}
+
+	// ---- notification routes (every member has a bell) ----
+	notifGroup := api.Group("/notifications", middleware.Auth(tokens), middleware.RequireTenant())
+	{
+		notifGroup.GET("", notificationHandler.Feed)
+		notifGroup.POST("/read-all", notificationHandler.MarkAllRead)
+		notifGroup.POST("/:id/read", notificationHandler.MarkRead)
+		notifGroup.GET("/preferences", notificationHandler.GetPrefs)
+		notifGroup.PUT("/preferences", notificationHandler.UpdatePrefs)
 	}
 
 	// ---- super-admin routes ----

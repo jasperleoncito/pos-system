@@ -392,6 +392,15 @@ definitions:
     - movement_type
     - qty
     type: object
+  dto.NotificationPrefsRequest:
+    properties:
+      email_attendance:
+        type: boolean
+      email_daily_summary:
+        type: boolean
+      email_low_stock:
+        type: boolean
+    type: object
   dto.OpenDrawerRequest:
     properties:
       opening_float:
@@ -2461,6 +2470,95 @@ paths:
       summary: Update a modifier group and replace its options
       tags:
       - catalog
+  /notifications:
+    get:
+      parameters:
+      - description: Max items (default 30)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Recent notifications with the unread count
+      tags:
+      - notifications
+  /notifications/{id}/read:
+    post:
+      parameters:
+      - description: Notification ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Mark one notification read
+      tags:
+      - notifications
+  /notifications/preferences:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Email notification preferences
+      tags:
+      - notifications
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Preferences
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.NotificationPrefsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update email notification preferences
+      tags:
+      - notifications
+  /notifications/read-all:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Mark every notification read
+      tags:
+      - notifications
   /orders:
     get:
       parameters:

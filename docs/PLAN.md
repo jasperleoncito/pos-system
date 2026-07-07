@@ -2,7 +2,7 @@
 
 Full-PRD build (`first-prompt.md`) in sequential phases. The system must stay runnable after every phase; each phase ends with browser/API verification and one conventional commit.
 
-**Status: Phases 0–12 DONE ✅ · Continue from Phase 13 (Notifications & background jobs).**
+**Status: Phases 0–13 DONE ✅ · Only Phase 14 (Hardening & production readiness) remains.**
 
 ## Requirements beyond the PRD (user decisions)
 
@@ -57,8 +57,8 @@ expenses table (category/amount/expense_date). AnalyticsRepo aggregates over sal
 ### ✅ Phase 12 — Reporting & exports
 pkg/export: generic Document{Title,Subtitle,Columns(kind text|money|number),Rows,Totals,LogoPNG} + Exporter interface with CSV (stdlib), XLSX (excelize, numeric peso cells w/ #,##0.00), PDF (maroto/v2, tenant favicon-180 PNG header via new storage.Get; ₱ rendered as "P" — core fonts lack the glyph). ReportRepo = generic queryRows (pgx FieldDescriptions → map rows; values cast in SQL); 7 reports: sales, inventory (stock value), employees, attendance (worked minutes computed), profit (per-day CTE merge of sales/refunds/COGS/expenses via generate_series), tax (per-day net-of-tax + collected), receipts (methods string_agg). GET /reports + /reports/:type?from&to&format=json|csv|xlsx|pdf under reports:read; totals footer summed server-side. UI: /reports center — type chips, range, preview table with money formatting + TOTAL row, CSV/Excel/PDF download buttons (blob). NOTE: excelize/maroto bumped go.mod to go 1.26.1 → backend Dockerfile now golang:1.26-bookworm (keep in sync!). Verified: all 7 types JSON; CSV/XLSX/PDF bytes; PDF visually correct with totals matching dashboard (profit −₱1.75).
 
-### ⬜ Phase 13 — Notifications & background jobs
-Wire asynq in the worker container: email templates (verify, reset, low-stock, daily summary, attendance alerts) moved onto the queue; asynq scheduler crons per tenant timezone; in-app notifications table + unread endpoint + preferences. UI: bell dropdown with unread count, notifications page.
+### ✅ Phase 13 — Notifications & background jobs
+pkg/queue: asynq client + typed tasks (email:send, notify:low_stock, notify:attendance, notify:daily_summary); queue.Client implements the EmailSender contract so ALL transactional mail (verify/reset) now enqueues — cmd/worker delivers via SMTP. internal/worker.Handlers: fan-out to owner+manager members (in-app rows via batched insert + emails honoring per-user notification_prefs); asynq.Scheduler registers one daily-summary cron per tenant at 21:00 in the TENANT's timezone via "CRON_TZ={tz} 0 21 * * *" specs. Hooks: InventoryService.checkAlert enqueues exactly once per newly opened alert (EnsureAlert now returns created bool); EmployeeService.ClockIn enqueues when late_minutes > 0; services get queue via SetJobs (Jobs interface). notifications + notification_prefs tables (unread partial index; prefs default-true). Routes (any member): GET /notifications (items+unread), POST /:id/read, /read-all, GET/PUT /preferences. UI: topbar bell w/ unread badge + dropdown (30s poll), /notifications page w/ email-preference switches. Worker compose runs `go run ./cmd/worker` (restart to pick up changes). Verified: stock_out → alert → in-app + emails to owner+manager in Mailpit; 86m-late clock-in alert; queued password-reset delivered; read/read-all counts; prefs round-trip; crons registered per tenant.
 
 ### ⬜ Phase 14 — Hardening & production readiness
 Audit coverage sweep on all mutating routes + audit log viewer; super-admin system analytics + subscriptions; security pass (headers, strict CORS, global rate limits, validation audit); integration test suite (auth, tenant isolation, order flow, inventory deduction); `docker-compose.prod.yml` (built images, TLS-ready nginx, healthchecks, restart policies); Postgres/MinIO backup script; responsive + a11y sweep at 375/768/1024/1440.
