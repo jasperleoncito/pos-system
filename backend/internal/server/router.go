@@ -72,11 +72,16 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		Auditor: auditSvc, Logger: deps.Logger, AppBaseURL: deps.Config.HTTP.CORSOrigins,
 	})
 	tenantSvc := service.NewTenantService(tenantRepo, settingsRepo, objectStore, auditSvc, deps.Logger)
+	catalogSvc := service.NewCatalogService(
+		postgres.NewCategoryRepo(deps.DB), postgres.NewProductRepo(deps.DB),
+		postgres.NewModifierRepo(deps.DB), postgres.NewTaxRepo(deps.DB),
+		objectStore, auditSvc, deps.Logger)
 
 	// ---- handlers ----
 	healthHandler := v1.NewHealthHandler(deps.DB, deps.Redis, deps.MinIO, deps.Config.MinIO.Bucket)
 	authHandler := v1.NewAuthHandler(authSvc)
 	tenantHandler := v1.NewTenantHandler(tenantSvc)
+	catalogHandler := v1.NewCatalogHandler(catalogSvc)
 
 	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler.Health)
@@ -116,6 +121,34 @@ func NewRouter(deps Dependencies) *gin.Engine {
 			middleware.RequirePermission(rbac.PermTenantSettingsWrite), tenantHandler.UpdateSettings)
 		tenantGroup.POST("/logo",
 			middleware.RequirePermission(rbac.PermTenantSettingsWrite), tenantHandler.UploadLogo)
+	}
+
+	// ---- catalog routes ----
+	catalogRead := middleware.RequirePermission(rbac.PermCatalogRead)
+	catalogWrite := middleware.RequirePermission(rbac.PermCatalogWrite)
+	catalogGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant())
+	{
+		catalogGroup.GET("/categories", catalogRead, catalogHandler.ListCategories)
+		catalogGroup.POST("/categories", catalogWrite, catalogHandler.CreateCategory)
+		catalogGroup.PUT("/categories/:id", catalogWrite, catalogHandler.UpdateCategory)
+		catalogGroup.DELETE("/categories/:id", catalogWrite, catalogHandler.DeleteCategory)
+
+		catalogGroup.GET("/products", catalogRead, catalogHandler.ListProducts)
+		catalogGroup.GET("/products/:id", catalogRead, catalogHandler.GetProduct)
+		catalogGroup.POST("/products", catalogWrite, catalogHandler.CreateProduct)
+		catalogGroup.PUT("/products/:id", catalogWrite, catalogHandler.UpdateProduct)
+		catalogGroup.DELETE("/products/:id", catalogWrite, catalogHandler.DeleteProduct)
+		catalogGroup.POST("/products/:id/image", catalogWrite, catalogHandler.UploadProductImage)
+
+		catalogGroup.GET("/modifier-groups", catalogRead, catalogHandler.ListModifierGroups)
+		catalogGroup.POST("/modifier-groups", catalogWrite, catalogHandler.CreateModifierGroup)
+		catalogGroup.PUT("/modifier-groups/:id", catalogWrite, catalogHandler.UpdateModifierGroup)
+		catalogGroup.DELETE("/modifier-groups/:id", catalogWrite, catalogHandler.DeleteModifierGroup)
+
+		catalogGroup.GET("/taxes", catalogRead, catalogHandler.ListTaxes)
+		catalogGroup.POST("/taxes", catalogWrite, catalogHandler.CreateTax)
+		catalogGroup.PUT("/taxes/:id", catalogWrite, catalogHandler.UpdateTax)
+		catalogGroup.DELETE("/taxes/:id", catalogWrite, catalogHandler.DeleteTax)
 	}
 
 	// ---- super-admin routes ----

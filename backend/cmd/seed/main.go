@@ -142,7 +142,7 @@ func run(ctx context.Context, db *pgxpool.Pool, logger *slog.Logger) error {
 		logger.Info("added member", "email", ru.email, "role", ru.role)
 	}
 
-	return nil
+	return seedMenu(ctx, db, teresa.ID, logger)
 }
 
 // ensureUser fetches by email or creates when missing.
