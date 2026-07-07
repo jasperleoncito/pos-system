@@ -178,6 +178,7 @@ func (s *OrderService) PaySplit(ctx context.Context, tenantID, userID, orderID, 
 		})
 		s.deductInventory(ctx, tenantID, userID, o)
 		s.awardLoyalty(ctx, tenantID, userID, orderID)
+		s.bustSalesCache(ctx, tenantID)
 	}
 	return s.orders.GetByID(ctx, tenantID, orderID)
 }
@@ -282,6 +283,7 @@ func (s *OrderService) Refund(ctx context.Context, tenantID, userID, orderID, re
 		EntityType: "order", EntityID: orderID,
 		After: map[string]any{"amount": amount, "reason": reason, "status": newStatus},
 	})
+	s.bustSalesCache(ctx, tenantID)
 	return s.orders.GetByID(ctx, tenantID, orderID)
 }
 
@@ -346,6 +348,7 @@ func (s *OrderService) Void(ctx context.Context, tenantID, userID, orderID, reas
 		Before: map[string]any{"status": o.Status},
 		After:  map[string]any{"reason": reason, "cash_returned": cashOut},
 	})
+	s.bustSalesCache(ctx, tenantID)
 	return s.orders.GetByID(ctx, tenantID, orderID)
 }
 

@@ -111,6 +111,10 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	loyaltySvc := service.NewLoyaltyService(postgres.NewCustomerRepo(deps.DB), auditSvc, deps.Logger)
 	orderSvc.SetLoyalty(loyaltySvc)
 	customerHandler := v1.NewCustomerHandler(loyaltySvc)
+	analyticsSvc := service.NewAnalyticsService(postgres.NewAnalyticsRepo(deps.DB), tenantRepo,
+		redisrepo.NewCache(deps.Redis), auditSvc, deps.Logger)
+	orderSvc.SetAnalytics(analyticsSvc)
+	analyticsHandler := v1.NewAnalyticsHandler(analyticsSvc)
 
 	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler.Health)
@@ -303,6 +307,18 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		// Program configuration is manager+ (catalog:write), like promos.
 		custGroup.GET("/loyalty/settings", custRead, customerHandler.GetLoyaltySettings)
 		custGroup.PUT("/loyalty/settings", catalogWrite, customerHandler.UpdateLoyaltySettings)
+	}
+
+	// ---- analytics & expenses routes ----
+	analyticsRead := middleware.RequirePermission(rbac.PermAnalyticsRead)
+	analyticsGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant(), analyticsRead)
+	{
+		analyticsGroup.GET("/analytics/overview", analyticsHandler.Overview)
+		analyticsGroup.GET("/analytics/dashboard", analyticsHandler.Dashboard)
+		analyticsGroup.GET("/expenses", analyticsHandler.ListExpenses)
+		analyticsGroup.POST("/expenses", analyticsHandler.CreateExpense)
+		analyticsGroup.PUT("/expenses/:id", analyticsHandler.UpdateExpense)
+		analyticsGroup.DELETE("/expenses/:id", analyticsHandler.DeleteExpense)
 	}
 
 	// ---- super-admin routes ----

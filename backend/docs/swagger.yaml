@@ -202,6 +202,30 @@ definitions:
     - full_name
     - salary_type
     type: object
+  dto.ExpenseRequest:
+    properties:
+      amount:
+        minimum: 1
+        type: integer
+      category:
+        enum:
+        - rent
+        - utilities
+        - supplies
+        - salaries
+        - other
+        type: string
+      description:
+        maxLength: 300
+        minLength: 1
+        type: string
+      expense_date:
+        type: string
+    required:
+    - amount
+    - category
+    - description
+    type: object
   dto.ForgotPasswordRequest:
     properties:
       email:
@@ -860,6 +884,43 @@ paths:
       summary: Activate or suspend a tenant (super admin)
       tags:
       - admin
+  /analytics/dashboard:
+    get:
+      parameters:
+      - description: YYYY-MM-DD (tenant-local, inclusive)
+        in: query
+        name: from
+        type: string
+      - description: YYYY-MM-DD (tenant-local, inclusive)
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Full dashboard payload for a date range
+      tags:
+      - analytics
+  /analytics/overview:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Today/WTD/MTD/YTD stat cards with previous-period deltas
+      tags:
+      - analytics
   /attendance:
     get:
       parameters:
@@ -1898,6 +1959,98 @@ paths:
       summary: Replace an employee's weekly schedule
       tags:
       - employees
+  /expenses:
+    get:
+      parameters:
+      - description: YYYY-MM-DD
+        in: query
+        name: from
+        type: string
+      - description: YYYY-MM-DD
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List expenses in a date range
+      tags:
+      - analytics
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Expense
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ExpenseRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Record an expense
+      tags:
+      - analytics
+  /expenses/{id}:
+    delete:
+      parameters:
+      - description: Expense ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete an expense
+      tags:
+      - analytics
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Expense ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Expense
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ExpenseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update an expense
+      tags:
+      - analytics
   /health:
     get:
       description: Reports API liveness and dependency status (PostgreSQL, Redis,

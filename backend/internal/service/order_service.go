@@ -30,6 +30,7 @@ type OrderService struct {
 	hub       *realtime.Hub
 	inventory *InventoryService
 	loyalty   *LoyaltyService
+	analytics SalesCacheInvalidator
 	auditor   *AuditService
 	logger    *slog.Logger
 }
@@ -40,6 +41,20 @@ func (s *OrderService) SetInventory(inv *InventoryService) { s.inventory = inv }
 
 // SetLoyalty attaches the loyalty service after construction.
 func (s *OrderService) SetLoyalty(l *LoyaltyService) { s.loyalty = l }
+
+// SalesCacheInvalidator busts cached analytics after sales-affecting events.
+type SalesCacheInvalidator interface {
+	InvalidateTenant(ctx context.Context, tenantID string)
+}
+
+// SetAnalytics attaches the dashboard cache invalidator.
+func (s *OrderService) SetAnalytics(a SalesCacheInvalidator) { s.analytics = a }
+
+func (s *OrderService) bustSalesCache(ctx context.Context, tenantID string) {
+	if s.analytics != nil {
+		s.analytics.InvalidateTenant(ctx, tenantID)
+	}
+}
 
 // awardLoyalty credits earned points once an order completes. The earn
 // base excludes value paid with points themselves.
@@ -435,6 +450,7 @@ func (s *OrderService) Pay(ctx context.Context, tenantID, userID, orderID string
 	}
 	s.deductInventory(ctx, tenantID, userID, o)
 	s.awardLoyalty(ctx, tenantID, userID, orderID)
+	s.bustSalesCache(ctx, tenantID)
 	return s.orders.GetByID(ctx, tenantID, orderID)
 }
 

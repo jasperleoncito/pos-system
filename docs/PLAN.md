@@ -2,7 +2,7 @@
 
 Full-PRD build (`first-prompt.md`) in sequential phases. The system must stay runnable after every phase; each phase ends with browser/API verification and one conventional commit.
 
-**Status: Phases 0–10 DONE ✅ · Continue from Phase 11 (Sales analytics dashboard).**
+**Status: Phases 0–11 DONE ✅ · Continue from Phase 12 (Reporting & exports).**
 
 ## Requirements beyond the PRD (user decisions)
 
@@ -51,8 +51,8 @@ employees (optional unique user link per tenant, salary hourly/daily/monthly BIG
 ### ✅ Phase 10 — Customers & loyalty
 customers (points_balance + lifetime_points, tier, unique phone per tenant)/loyalty_settings (earn_rate=centavos per point, redeem_value=centavos per point, tier thresholds+multipliers, defaults served when unsaved)/loyalty_transactions (signed points, balance_after; ApplyPoints = guarded UPDATE rejecting overdrafts + ledger insert in one tx; lifetime grows on earn, shrinks only when an earn is reversed). Points redemption = payment method `points` (requires attached customer; redeemed BEFORE payments book; counts as non-cash so ≤ due). Earn on completion (Pay + PaySplit): floor((total − points_value)/earn_rate × tier multiplier); auto tier upgrade (never downgrades). Void → ReverseForOrder (earn and redeem both reversed via adjust rows). Orders: customer_id at creation, ?customer_id= list filter. Loyalty settings RBAC = catalog:write (manager+); customers under customers:read/write. Seed: 3 demo customers. UI: /customers (tier badges, profile dialog w/ ledger + purchases tabs, loyalty program dialog), POS attach-customer (search/quick-create/detach in cart panel), Points method in payment dialog capped at balance value. Verified: ₱200 → 4pts; partial redemption excluded from earn base; overdraft + no-customer 422; void reversal exact; kitchen 403; cashier settings 403.
 
-### ⬜ Phase 11 — Sales analytics dashboard
-Today/WTD/MTD/YTD sales, revenue/profit (− recipe COGS − expenses)/expenses, AOV, top products/categories/employees, hourly sales, day×hour heatmap, payment mix; Redis cache 2–5min TTL invalidated on completion; expenses CRUD. UI: stat cards with deltas, Recharts line/bar/donut, heatmap, date-range picker (use dataviz + ui-ux-pro-max guidance).
+### ✅ Phase 11 — Sales analytics dashboard
+expenses table (category/amount/expense_date). AnalyticsRepo aggregates over sale statuses (completed/partially_refunded/refunded; refunds subtract via refunds table): summary (gross/net/AOV/refunds/expenses/COGS/profit; COGS = 'sale' inventory movements × unit_cost fallback item cost), top products/categories/employees, hourly (dense 24 buckets, tenant TZ via AT TIME ZONE), day×hour heatmap, payment mix (cash bucket minus change). Endpoints: GET /analytics/overview (today/WTD-Mon-start/MTD/YTD each vs previous period) + /analytics/dashboard?from&to (one bundled payload) + expenses CRUD — all under analytics:read (manager+). Redis JSON cache (redisrepo.Cache) TTL 3min, key prefix analytics:{tenant}:; OrderService.SetAnalytics(SalesCacheInvalidator) busts on completion/split completion/refund/void/expense writes. UI (dataviz rules): stat cards w/ trend deltas, preset+custom range picker, summary strip, Recharts hourly bars (--chart-1) + payment donut (fixed Okabe-Ito hue per method), CSS-grid heatmap (sequential brand-hue opacity), top lists w/ proportional bars, expenses card w/ add/delete. recharts added to frontend. Verified: summary math incl. refund ₱50 + COGS ₱370.75; expense create instantly reflected (cache invalidated); cashier 403; charts render at 1440.
 
 ### ⬜ Phase 12 — Reporting & exports
 Report endpoints (sales, inventory, employees, attendance, profit, tax, receipts reprint) each with `?format=json|csv|xlsx|pdf` behind one Exporter interface — excelize (XLSX), stdlib CSV, maroto/v2 (PDF with tenant logo header). UI: Reports center with filters + preview + export downloads.
