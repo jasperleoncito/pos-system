@@ -2,7 +2,7 @@
 
 Full-PRD build (`first-prompt.md`) in sequential phases. The system must stay runnable after every phase; each phase ends with browser/API verification and one conventional commit.
 
-**Status: Phases 0–11 DONE ✅ · Continue from Phase 12 (Reporting & exports).**
+**Status: Phases 0–12 DONE ✅ · Continue from Phase 13 (Notifications & background jobs).**
 
 ## Requirements beyond the PRD (user decisions)
 
@@ -54,8 +54,8 @@ customers (points_balance + lifetime_points, tier, unique phone per tenant)/loya
 ### ✅ Phase 11 — Sales analytics dashboard
 expenses table (category/amount/expense_date). AnalyticsRepo aggregates over sale statuses (completed/partially_refunded/refunded; refunds subtract via refunds table): summary (gross/net/AOV/refunds/expenses/COGS/profit; COGS = 'sale' inventory movements × unit_cost fallback item cost), top products/categories/employees, hourly (dense 24 buckets, tenant TZ via AT TIME ZONE), day×hour heatmap, payment mix (cash bucket minus change). Endpoints: GET /analytics/overview (today/WTD-Mon-start/MTD/YTD each vs previous period) + /analytics/dashboard?from&to (one bundled payload) + expenses CRUD — all under analytics:read (manager+). Redis JSON cache (redisrepo.Cache) TTL 3min, key prefix analytics:{tenant}:; OrderService.SetAnalytics(SalesCacheInvalidator) busts on completion/split completion/refund/void/expense writes. UI (dataviz rules): stat cards w/ trend deltas, preset+custom range picker, summary strip, Recharts hourly bars (--chart-1) + payment donut (fixed Okabe-Ito hue per method), CSS-grid heatmap (sequential brand-hue opacity), top lists w/ proportional bars, expenses card w/ add/delete. recharts added to frontend. Verified: summary math incl. refund ₱50 + COGS ₱370.75; expense create instantly reflected (cache invalidated); cashier 403; charts render at 1440.
 
-### ⬜ Phase 12 — Reporting & exports
-Report endpoints (sales, inventory, employees, attendance, profit, tax, receipts reprint) each with `?format=json|csv|xlsx|pdf` behind one Exporter interface — excelize (XLSX), stdlib CSV, maroto/v2 (PDF with tenant logo header). UI: Reports center with filters + preview + export downloads.
+### ✅ Phase 12 — Reporting & exports
+pkg/export: generic Document{Title,Subtitle,Columns(kind text|money|number),Rows,Totals,LogoPNG} + Exporter interface with CSV (stdlib), XLSX (excelize, numeric peso cells w/ #,##0.00), PDF (maroto/v2, tenant favicon-180 PNG header via new storage.Get; ₱ rendered as "P" — core fonts lack the glyph). ReportRepo = generic queryRows (pgx FieldDescriptions → map rows; values cast in SQL); 7 reports: sales, inventory (stock value), employees, attendance (worked minutes computed), profit (per-day CTE merge of sales/refunds/COGS/expenses via generate_series), tax (per-day net-of-tax + collected), receipts (methods string_agg). GET /reports + /reports/:type?from&to&format=json|csv|xlsx|pdf under reports:read; totals footer summed server-side. UI: /reports center — type chips, range, preview table with money formatting + TOTAL row, CSV/Excel/PDF download buttons (blob). NOTE: excelize/maroto bumped go.mod to go 1.26.1 → backend Dockerfile now golang:1.26-bookworm (keep in sync!). Verified: all 7 types JSON; CSV/XLSX/PDF bytes; PDF visually correct with totals matching dashboard (profit −₱1.75).
 
 ### ⬜ Phase 13 — Notifications & background jobs
 Wire asynq in the worker container: email templates (verify, reset, low-stock, daily summary, attendance alerts) moved onto the queue; asynq scheduler crons per tenant timezone; in-app notifications table + unread endpoint + preferences. UI: bell dropdown with unread count, notifications page.

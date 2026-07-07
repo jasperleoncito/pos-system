@@ -16,6 +16,8 @@ const (
 type ObjectStorage interface {
 	// Put stores an object and returns its key.
 	Put(ctx context.Context, key string, data []byte, contentType string) error
+	// Get loads an object's bytes (e.g. logos embedded into PDFs).
+	Get(ctx context.Context, key string) ([]byte, error)
 	Delete(ctx context.Context, key string) error
 	// PublicURL returns the browser-facing URL for a stored key.
 	PublicURL(key string) string

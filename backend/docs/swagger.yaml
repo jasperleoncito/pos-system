@@ -3080,6 +3080,52 @@ paths:
       summary: Receive quantities against a PO (stock in + cost update)
       tags:
       - procurement
+  /reports:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Available report types
+      tags:
+      - reports
+  /reports/{type}:
+    get:
+      parameters:
+      - description: sales | inventory | employees | attendance | profit | tax | receipts
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: YYYY-MM-DD (tenant-local, inclusive)
+        in: query
+        name: from
+        type: string
+      - description: YYYY-MM-DD (tenant-local, inclusive)
+        in: query
+        name: to
+        type: string
+      - description: json (default) | csv | xlsx | pdf
+        in: query
+        name: format
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Run a report as json, csv, xlsx, or pdf
+      tags:
+      - reports
   /suppliers:
     get:
       produces:

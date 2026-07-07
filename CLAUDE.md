@@ -40,6 +40,6 @@ Multi-tenant restaurant POS SaaS (PRD in `first-prompt.md`). Built in phases —
 ## Gotchas
 
 - `shadcn` CLI init once failed to patch `globals.css` and skipped utility deps — after `npx shadcn add …`, verify the component files exist and imports resolve.
-- Backend go.mod pins Go 1.25 → Docker base image is `golang:1.25-bookworm`; keep them in sync.
+- Backend go.mod pins Go 1.26.1 (bumped by excelize/maroto in Phase 12) → Docker base image is `golang:1.26-bookworm`; keep them in sync. The container sets GOTOOLCHAIN=local, so a go.mod toolchain bump breaks air until the base image matches.
 - Air watches `.go` and `.sql`; writing a migration triggers a backend restart which auto-applies it.
 - Receipt printing: `#receipt-print` is the only element visible during `window.print()` (80mm CSS in `globals.css`).

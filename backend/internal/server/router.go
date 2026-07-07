@@ -115,6 +115,9 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		redisrepo.NewCache(deps.Redis), auditSvc, deps.Logger)
 	orderSvc.SetAnalytics(analyticsSvc)
 	analyticsHandler := v1.NewAnalyticsHandler(analyticsSvc)
+	reportSvc := service.NewReportService(postgres.NewReportRepo(deps.DB), analyticsSvc,
+		tenantRepo, settingsRepo, objectStore, deps.Logger)
+	reportHandler := v1.NewReportHandler(reportSvc)
 
 	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler.Health)
@@ -319,6 +322,14 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		analyticsGroup.POST("/expenses", analyticsHandler.CreateExpense)
 		analyticsGroup.PUT("/expenses/:id", analyticsHandler.UpdateExpense)
 		analyticsGroup.DELETE("/expenses/:id", analyticsHandler.DeleteExpense)
+	}
+
+	// ---- reports routes ----
+	reportsGroup := api.Group("/reports", middleware.Auth(tokens), middleware.RequireTenant(),
+		middleware.RequirePermission(rbac.PermReportsRead))
+	{
+		reportsGroup.GET("", reportHandler.ListReportTypes)
+		reportsGroup.GET("/:type", reportHandler.GetReport)
 	}
 
 	// ---- super-admin routes ----

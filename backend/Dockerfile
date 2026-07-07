@@ -1,5 +1,5 @@
 # ---- base: shared Go toolchain layer ----
-FROM golang:1.25-bookworm AS base
+FROM golang:1.26-bookworm AS base
 WORKDIR /app
 ENV GOCACHE=/go-cache GOMODCACHE=/gomod-cache
 COPY go.mod go.sum ./
