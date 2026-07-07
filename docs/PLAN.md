@@ -1,0 +1,79 @@
+# Build Plan — Multi-Tenant Restaurant POS
+
+Full-PRD build (`first-prompt.md`) in sequential phases. The system must stay runnable after every phase; each phase ends with browser/API verification and one conventional commit.
+
+**Status: Phases 0–5 DONE ✅ · Continue from Phase 6.**
+
+## Requirements beyond the PRD (user decisions)
+
+- POS works on any device: phone / tablet / iPad / desktop, touch-first (44px+ targets).
+- Never use browser `alert()`/`confirm()` — shadcn Dialog/AlertDialog + sonner toasts only.
+- All ports are random 4-digit numbers (web 7642, api 9137 internal, frontend 4519 internal, Mailpit 9284, MinIO console 9673).
+- Demo tenant Teresa's Eatery seeded with the real menu from `img-menu/` photos, prices in PHP centavos.
+- Design direction via ui-ux-pro-max skill; tenant brand colors re-theme the whole UI via CSS variables.
+
+## Phase log
+
+### ✅ Phase 0 — Infrastructure (commit `15d8dcd`)
+Docker Compose stack (postgres 16, redis 7, minio+init, backend air hot-reload, worker, frontend, mailpit, nginx), Go/Gin skeleton with `/api/v1/health`, envelope + apperror packages, golang-migrate auto-run, swaggo; Next.js 15 + Tailwind v4 + shadcn + React Query + next-themes + sonner; Makefile, .env.example.
+
+### ✅ Phase 1 — Auth, tenancy, RBAC (commit `0738683`)
+JWT access (15m) + rotating refresh (reuse rejected), device sessions, forgot/reset + email verification (Redis OTP + Mailpit), switch-tenant, RBAC matrix + RequirePermission, per-IP rate limits, audit logs, idempotent seeder (super admin + per-role users). Frontend: auth pages, 401 refresh interceptor, role-aware sidebar, tenant switcher, devices page.
+
+### ✅ Phase 2 — Branding & image pipeline (commit `d62c622`)
+Pure-Go WebP pipeline (gen2brain/webp WASM; resize 1600px, q80, thumbs, favicon set, metadata stripped), MinIO per-tenant keys served via nginx `/storage/`, tenant settings CRUD + logo upload (old generations cleaned), live tenant theming via CSS variables (contrast-aware), super-admin `/admin/tenants` suspend/activate. Verified: 8MB PNG → optimized WebP set; 18MB → 413 at nginx.
+
+### ✅ Phase 3 — Menu catalog + Teresa's seed (commit `f6d11f8`)
+Catalog schema (categories, taxes, products, variants, modifier_groups/modifiers, product_modifier_groups), CRUD with batched child loading (no N+1), product images via pipeline. Seed: 7 categories, 47 products with exact photo prices, modifier groups (Choice of Side Dish / Drink / Dip), Mismo + RC 1L variants, 12% inclusive VAT. Menu UI: Products/Categories/Modifiers/Taxes tabs.
+
+### ✅ Phase 4 — POS core (commit `33b6868`)
+Orders (per-tenant numbers via order_counters upsert), server-side pricing + snapshots, required-modifier enforcement, inclusive/exclusive tax (half-up, unit tested), hold/resume, mixed payments (change from cash only; non-cash ≤ due; cash requires open drawer), drawer sessions (one open per tenant) + signed cash-movement ledger + close variance, receipt endpoint with branding. Touch-first POS terminal: category chips, grid, options dialog, side-panel/bottom-sheet cart, payment dialog (quick cash, Exact, split payments), held orders, 80mm print receipt. Verified E2E incl. ₱184 sale paid ₱100 cash + ₱84 GCash, VAT ₱19.71.
+
+### ✅ Phase 5 — Discounts, coupons, splits, refunds, voids (commit `db9e52c`)
+Discounts + coupons (atomic max_uses redemption, released on void), order-level promo at creation, split bills (amounts sum to total, per-split payments, completes when all paid), refunds (manager+, capped at remaining, drawer -amount), voids (manager+, reason, net cash returned). Frontend: /promos page, POS Promo + Split-bill dialogs, /orders history with role-gated Refund/Void. Verified: max_uses=1 reuse rejected; 2-way split cash+GCash; ₱50 partial refund moved drawer; cashier refund/void 403.
+
+---
+
+## Remaining phases
+
+### ⬜ Phase 6 — Kitchen Display (realtime)
+- Backend: SSE hub + Redis pub/sub channel `kitchen:{tenant_id}`; publish on order create / kitchen_status change. Kitchen ticket view of orders; transitions pending→preparing→ready→completed; per-item status; priority flag endpoint. Routes: `GET /kitchen/orders`, `PATCH /kitchen/orders/:id/status`, `PATCH /kitchen/orders/:id/items/:itemId/status`, `POST /orders/:id/priority`, `GET /kitchen/stream` (SSE — nginx `proxy_buffering off` already configured).
+- Frontend: `/[tenant]/kitchen` full-screen board — columns by status, order cards with items/modifiers/elapsed-time color coding, priority badge, Web Audio sound on new order, touch-friendly advance buttons. Polling fallback via React Query refetch.
+- Verify: two browsers (cashier + kitchen): new POS order appears on KDS ~1s with sound; status flows back; kitchen role sees only KDS routes.
+
+### ⬜ Phase 7 — Inventory core
+Units, inventory_items (ingredient/finished_good, current_stock, reorder_level, cost), recipes/BOM per product, append-only inventory_movements ledger (qty_before/after) updating stock atomically (Redis lock `inv:{tenant}:{item}` + SELECT FOR UPDATE); recipe deduction on order completion (idempotent by order_id); adjustments; movement history. Seed sample ingredients + recipes. UI: item table with stock badges, stock in/out dialogs, recipe builder on product form, movement history.
+Verify: selling Katsudon deducts per recipe; concurrent orders don't double-deduct.
+
+### ⬜ Phase 8 — Suppliers, purchase orders, low-stock alerts
+Suppliers CRUD; PO lifecycle draft→ordered→receive partial/full (movements + cost update); stock_alerts on reorder level; alerts list/acknowledge. UI: suppliers, PO builder, receive screen, low-stock dashboard widget.
+
+### ⬜ Phase 9 — Employees, schedules, attendance
+Employees (optional user link, salary type/rate, photo via pipeline), weekly schedules with grace minutes, clock in/out (server time) computing late/early-out/overtime/breaks, manager approval, attendance reports. UI: directory + profile, schedule grid, big-button self-service clock page, review + report table.
+
+### ⬜ Phase 10 — Customers & loyalty
+Customers (points_balance, tier, birthday, purchase history), membership tiers (Silver/Gold/VIP) with multipliers, loyalty_transactions ledger (balance_after), loyalty settings (earn rate, redemption value); earn on completion, redeem at POS, auto tier upgrade. UI: customer table/profile, attach-customer at POS, redeem points in payment dialog.
+
+### ⬜ Phase 11 — Sales analytics dashboard
+Today/WTD/MTD/YTD sales, revenue/profit (− recipe COGS − expenses)/expenses, AOV, top products/categories/employees, hourly sales, day×hour heatmap, payment mix; Redis cache 2–5min TTL invalidated on completion; expenses CRUD. UI: stat cards with deltas, Recharts line/bar/donut, heatmap, date-range picker (use dataviz + ui-ux-pro-max guidance).
+
+### ⬜ Phase 12 — Reporting & exports
+Report endpoints (sales, inventory, employees, attendance, profit, tax, receipts reprint) each with `?format=json|csv|xlsx|pdf` behind one Exporter interface — excelize (XLSX), stdlib CSV, maroto/v2 (PDF with tenant logo header). UI: Reports center with filters + preview + export downloads.
+
+### ⬜ Phase 13 — Notifications & background jobs
+Wire asynq in the worker container: email templates (verify, reset, low-stock, daily summary, attendance alerts) moved onto the queue; asynq scheduler crons per tenant timezone; in-app notifications table + unread endpoint + preferences. UI: bell dropdown with unread count, notifications page.
+
+### ⬜ Phase 14 — Hardening & production readiness
+Audit coverage sweep on all mutating routes + audit log viewer; super-admin system analytics + subscriptions; security pass (headers, strict CORS, global rate limits, validation audit); integration test suite (auth, tenant isolation, order flow, inventory deduction); `docker-compose.prod.yml` (built images, TLS-ready nginx, healthchecks, restart policies); Postgres/MinIO backup script; responsive + a11y sweep at 375/768/1024/1440.
+
+---
+
+## Architecture quick reference
+
+DB schema per module, key decisions, and verification recipes are recorded in the phase log above and in `CLAUDE.md`. The original full design (schema column detail per module) also lives in the PRD `first-prompt.md` §Database plus these decisions:
+
+- Shared-schema tenancy; JWT claims `{sub, tid, role, sid, is_super, typ}`.
+- KDS realtime = SSE + Redis pub/sub (not WebSocket); polling fallback.
+- Queue = hibiken/asynq, same binary via `cmd/worker`.
+- Exports = excelize / csv / maroto v2.
+- Money = BIGINT centavos; inclusive tax `amount×rate/(100+rate)` half-up.
