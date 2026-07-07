@@ -72,16 +72,22 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		Auditor: auditSvc, Logger: deps.Logger, AppBaseURL: deps.Config.HTTP.CORSOrigins,
 	})
 	tenantSvc := service.NewTenantService(tenantRepo, settingsRepo, objectStore, auditSvc, deps.Logger)
+	productRepo := postgres.NewProductRepo(deps.DB)
+	taxRepo := postgres.NewTaxRepo(deps.DB)
 	catalogSvc := service.NewCatalogService(
-		postgres.NewCategoryRepo(deps.DB), postgres.NewProductRepo(deps.DB),
-		postgres.NewModifierRepo(deps.DB), postgres.NewTaxRepo(deps.DB),
+		postgres.NewCategoryRepo(deps.DB), productRepo,
+		postgres.NewModifierRepo(deps.DB), taxRepo,
 		objectStore, auditSvc, deps.Logger)
+	orderSvc := service.NewOrderService(
+		postgres.NewOrderRepo(deps.DB), postgres.NewDrawerRepo(deps.DB),
+		productRepo, taxRepo, settingsRepo, tenantRepo, auditSvc, deps.Logger)
 
 	// ---- handlers ----
 	healthHandler := v1.NewHealthHandler(deps.DB, deps.Redis, deps.MinIO, deps.Config.MinIO.Bucket)
 	authHandler := v1.NewAuthHandler(authSvc)
 	tenantHandler := v1.NewTenantHandler(tenantSvc)
 	catalogHandler := v1.NewCatalogHandler(catalogSvc)
+	orderHandler := v1.NewOrderHandler(orderSvc, objectStore)
 
 	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler.Health)
@@ -149,6 +155,23 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		catalogGroup.POST("/taxes", catalogWrite, catalogHandler.CreateTax)
 		catalogGroup.PUT("/taxes/:id", catalogWrite, catalogHandler.UpdateTax)
 		catalogGroup.DELETE("/taxes/:id", catalogWrite, catalogHandler.DeleteTax)
+	}
+
+	// ---- order & cash drawer routes ----
+	ordersCreate := middleware.RequirePermission(rbac.PermOrdersCreate)
+	ordersRead := middleware.RequirePermission(rbac.PermOrdersRead)
+	orderGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant())
+	{
+		orderGroup.POST("/orders", ordersCreate, orderHandler.CreateOrder)
+		orderGroup.GET("/orders", ordersRead, orderHandler.ListOrders)
+		orderGroup.GET("/orders/:id", ordersRead, orderHandler.GetOrder)
+		orderGroup.POST("/orders/:id/hold", ordersCreate, orderHandler.SetHold)
+		orderGroup.POST("/orders/:id/payments", ordersCreate, orderHandler.Pay)
+		orderGroup.GET("/orders/:id/receipt", ordersRead, orderHandler.GetReceipt)
+
+		orderGroup.POST("/cash-drawer/open", ordersCreate, orderHandler.OpenDrawer)
+		orderGroup.GET("/cash-drawer/current", ordersCreate, orderHandler.CurrentDrawer)
+		orderGroup.POST("/cash-drawer/close", ordersCreate, orderHandler.CloseDrawer)
 	}
 
 	// ---- super-admin routes ----

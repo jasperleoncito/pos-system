@@ -1,11 +1,64 @@
 basePath: /api/v1
 definitions:
+  dto.CategoryRequest:
+    properties:
+      description:
+        maxLength: 500
+        type: string
+      is_active:
+        type: boolean
+      name:
+        maxLength: 120
+        minLength: 1
+        type: string
+      sort_order:
+        minimum: 0
+        type: integer
+    required:
+    - name
+    type: object
+  dto.CloseDrawerRequest:
+    properties:
+      counted_cash:
+        minimum: 0
+        type: integer
+    type: object
+  dto.CreateOrderRequest:
+    properties:
+      hold:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/dto.OrderItemRequest'
+        minItems: 1
+        type: array
+      notes:
+        maxLength: 500
+        type: string
+      order_type:
+        enum:
+        - dine_in
+        - takeout
+        - delivery
+        type: string
+      table_number:
+        maxLength: 20
+        type: string
+    required:
+    - items
+    - order_type
+    type: object
   dto.ForgotPasswordRequest:
     properties:
       email:
         type: string
     required:
     - email
+    type: object
+  dto.HoldOrderRequest:
+    properties:
+      hold:
+        type: boolean
     type: object
   dto.LoginRequest:
     properties:
@@ -23,6 +76,141 @@ definitions:
         type: string
     required:
     - refresh_token
+    type: object
+  dto.ModifierGroupRequest:
+    properties:
+      is_required:
+        type: boolean
+      max_select:
+        minimum: 1
+        type: integer
+      min_select:
+        minimum: 0
+        type: integer
+      modifiers:
+        items:
+          $ref: '#/definitions/dto.ModifierInput'
+        type: array
+      name:
+        maxLength: 120
+        minLength: 1
+        type: string
+      sort_order:
+        minimum: 0
+        type: integer
+    required:
+    - name
+    type: object
+  dto.ModifierInput:
+    properties:
+      is_active:
+        type: boolean
+      name:
+        maxLength: 120
+        minLength: 1
+        type: string
+      price_delta:
+        type: integer
+    required:
+    - name
+    type: object
+  dto.OpenDrawerRequest:
+    properties:
+      opening_float:
+        minimum: 0
+        type: integer
+    type: object
+  dto.OrderItemRequest:
+    properties:
+      modifier_ids:
+        items:
+          type: string
+        type: array
+      notes:
+        maxLength: 300
+        type: string
+      product_id:
+        type: string
+      qty:
+        maximum: 999
+        minimum: 1
+        type: integer
+      variant_id:
+        type: string
+    required:
+    - product_id
+    - qty
+    type: object
+  dto.PayOrderRequest:
+    properties:
+      payments:
+        items:
+          $ref: '#/definitions/dto.PaymentLineRequest'
+        minItems: 1
+        type: array
+    required:
+    - payments
+    type: object
+  dto.PaymentLineRequest:
+    properties:
+      amount:
+        minimum: 1
+        type: integer
+      method:
+        enum:
+        - cash
+        - gcash
+        - card
+        - maya
+        - bank_transfer
+        type: string
+      reference_no:
+        maxLength: 100
+        type: string
+    required:
+    - amount
+    - method
+    type: object
+  dto.ProductRequest:
+    properties:
+      base_price:
+        minimum: 0
+        type: integer
+      category_id:
+        type: string
+      cost_price:
+        minimum: 0
+        type: integer
+      description:
+        maxLength: 1000
+        type: string
+      is_active:
+        type: boolean
+      modifier_groups:
+        items:
+          type: string
+        type: array
+      name:
+        maxLength: 160
+        minLength: 1
+        type: string
+      sku:
+        maxLength: 60
+        type: string
+      sort_order:
+        minimum: 0
+        type: integer
+      tax_id:
+        type: string
+      track_inventory:
+        type: boolean
+      variants:
+        items:
+          $ref: '#/definitions/dto.VariantInput'
+        type: array
+    required:
+    - category_id
+    - name
     type: object
   dto.RefreshRequest:
     properties:
@@ -87,6 +275,25 @@ definitions:
     required:
     - tenant_id
     type: object
+  dto.TaxRequest:
+    properties:
+      is_active:
+        type: boolean
+      is_default:
+        type: boolean
+      is_inclusive:
+        type: boolean
+      name:
+        maxLength: 120
+        minLength: 1
+        type: string
+      rate_percent:
+        maximum: 100
+        minimum: 0
+        type: number
+    required:
+    - name
+    type: object
   dto.UpdateTenantSettingsRequest:
     properties:
       accent_color:
@@ -123,6 +330,20 @@ definitions:
     - accent_color
     - primary_color
     - secondary_color
+    type: object
+  dto.VariantInput:
+    properties:
+      name:
+        maxLength: 120
+        minLength: 1
+        type: string
+      price_delta:
+        type: integer
+      sku:
+        maxLength: 60
+        type: string
+    required:
+    - name
     type: object
   dto.VerifyEmailRequest:
     properties:
@@ -474,6 +695,166 @@ paths:
       summary: Verify email using an emailed token
       tags:
       - auth
+  /cash-drawer/close:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Counted cash (centavos)
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CloseDrawerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Close the drawer with counted cash (variance computed)
+      tags:
+      - cash-drawer
+  /cash-drawer/current:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Get the open drawer session with its movements
+      tags:
+      - cash-drawer
+  /cash-drawer/open:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Opening float (centavos)
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.OpenDrawerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Open the cash drawer with an opening float
+      tags:
+      - cash-drawer
+  /categories:
+    get:
+      parameters:
+      - description: Only active categories
+        in: query
+        name: active
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List menu categories
+      tags:
+      - catalog
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Category
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CategoryRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create a menu category
+      tags:
+      - catalog
+  /categories/{id}:
+    delete:
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Delete a menu category (must be empty)
+      tags:
+      - catalog
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Category
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CategoryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update a menu category
+      tags:
+      - catalog
   /health:
     get:
       description: Reports API liveness and dependency status (PostgreSQL, Redis,
@@ -492,6 +873,475 @@ paths:
       summary: Health check
       tags:
       - system
+  /modifier-groups:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List modifier groups with options
+      tags:
+      - catalog
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Modifier group
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ModifierGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create a modifier group with options
+      tags:
+      - catalog
+  /modifier-groups/{id}:
+    delete:
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete a modifier group
+      tags:
+      - catalog
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Modifier group
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ModifierGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update a modifier group and replace its options
+      tags:
+      - catalog
+  /orders:
+    get:
+      parameters:
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - description: Order number
+        in: query
+        name: search
+        type: string
+      - description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List orders
+      tags:
+      - orders
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Cart
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create an order (priced server-side from the catalog)
+      tags:
+      - orders
+  /orders/{id}:
+    get:
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get one order with items and payments
+      tags:
+      - orders
+  /orders/{id}/hold:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Hold flag
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.HoldOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Hold or resume an unpaid order
+      tags:
+      - orders
+  /orders/{id}/payments:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Payments
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PayOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Settle an order with one or more payments (mixed methods)
+      tags:
+      - orders
+  /orders/{id}/receipt:
+    get:
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get printable receipt data (order + branding)
+      tags:
+      - orders
+  /products:
+    get:
+      parameters:
+      - description: Filter by category
+        in: query
+        name: category_id
+        type: string
+      - description: Search name or SKU
+        in: query
+        name: search
+        type: string
+      - description: Only active products
+        in: query
+        name: active
+        type: boolean
+      - description: Page (1-based)
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List products with search, category filter, and pagination
+      tags:
+      - catalog
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Product
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ProductRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create a product with variants and modifier assignments
+      tags:
+      - catalog
+  /products/{id}:
+    delete:
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Soft-delete a product
+      tags:
+      - catalog
+    get:
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get one product with variants and modifier groups
+      tags:
+      - catalog
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Product
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ProductRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update a product
+      tags:
+      - catalog
+  /products/{id}/image:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: PNG/JPG/WEBP, max 10MB
+        in: formData
+        name: image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Upload a product photo (optimized to WebP automatically)
+      tags:
+      - catalog
+  /taxes:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List taxes
+      tags:
+      - catalog
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Tax
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.TaxRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create a tax
+      tags:
+      - catalog
+  /taxes/{id}:
+    delete:
+      parameters:
+      - description: Tax ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete a tax
+      tags:
+      - catalog
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Tax ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Tax
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.TaxRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update a tax
+      tags:
+      - catalog
   /tenant/logo:
     post:
       consumes:
