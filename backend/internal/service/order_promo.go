@@ -172,6 +172,7 @@ func (s *OrderService) PaySplit(ctx context.Context, tenantID, userID, orderID, 
 			TenantID: tenantID, UserID: userID, Action: "order.completed",
 			EntityType: "order", EntityID: orderID, After: map[string]any{"via": "split_bill"},
 		})
+		s.deductInventory(ctx, tenantID, userID, o)
 	}
 	return s.orders.GetByID(ctx, tenantID, orderID)
 }

@@ -135,6 +135,35 @@ definitions:
       hold:
         type: boolean
     type: object
+  dto.InventoryItemRequest:
+    properties:
+      cost_per_unit:
+        minimum: 0
+        type: integer
+      current_stock:
+        minimum: 0
+        type: number
+      is_active:
+        type: boolean
+      name:
+        maxLength: 120
+        minLength: 1
+        type: string
+      reorder_level:
+        minimum: 0
+        type: number
+      type:
+        enum:
+        - ingredient
+        - finished_good
+        type: string
+      unit_id:
+        type: string
+    required:
+    - name
+    - type
+    - unit_id
+    type: object
   dto.KitchenStatusRequest:
     properties:
       status:
@@ -200,6 +229,30 @@ definitions:
         type: integer
     required:
     - name
+    type: object
+  dto.MovementRequest:
+    properties:
+      item_id:
+        type: string
+      movement_type:
+        enum:
+        - stock_in
+        - stock_out
+        - adjustment
+        - waste
+        type: string
+      notes:
+        maxLength: 300
+        type: string
+      qty:
+        type: number
+      unit_cost:
+        minimum: 0
+        type: integer
+    required:
+    - item_id
+    - movement_type
+    - qty
     type: object
   dto.OpenDrawerRequest:
     properties:
@@ -303,6 +356,23 @@ definitions:
     required:
     - category_id
     - name
+    type: object
+  dto.RecipeItemInput:
+    properties:
+      inventory_item_id:
+        type: string
+      qty:
+        type: number
+    required:
+    - inventory_item_id
+    - qty
+    type: object
+  dto.RecipeRequest:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/dto.RecipeItemInput'
+        type: array
     type: object
   dto.RefreshRequest:
     properties:
@@ -411,6 +481,20 @@ definitions:
         minimum: 0
         type: number
     required:
+    - name
+    type: object
+  dto.UnitRequest:
+    properties:
+      abbreviation:
+        maxLength: 10
+        minLength: 1
+        type: string
+      name:
+        maxLength: 40
+        minLength: 1
+        type: string
+    required:
+    - abbreviation
     - name
     type: object
   dto.UpdateTenantSettingsRequest:
@@ -1205,6 +1289,143 @@ paths:
       summary: Health check
       tags:
       - system
+  /inventory/items:
+    get:
+      parameters:
+      - description: Name filter
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List inventory items with stock levels
+      tags:
+      - inventory
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Item
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.InventoryItemRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create an inventory item
+      tags:
+      - inventory
+  /inventory/items/{id}:
+    delete:
+      parameters:
+      - description: Item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Soft-delete an inventory item
+      tags:
+      - inventory
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Item ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Item
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.InventoryItemRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update an inventory item (stock changes go through movements)
+      tags:
+      - inventory
+  /inventory/movements:
+    get:
+      parameters:
+      - description: Filter by item
+        in: query
+        name: item_id
+        type: string
+      - description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Movement history (optionally per item)
+      tags:
+      - inventory
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Movement
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.MovementRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Apply a stock movement (stock_in, stock_out, adjustment, waste)
+      tags:
+      - inventory
   /kitchen/orders:
     get:
       produces:
@@ -1833,6 +2054,53 @@ paths:
       summary: Upload a product photo (optimized to WebP automatically)
       tags:
       - catalog
+  /products/{id}/recipe:
+    get:
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get a product's recipe (BOM)
+      tags:
+      - inventory
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Recipe items
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RecipeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Replace a product's recipe (BOM)
+      tags:
+      - inventory
   /taxes:
     get:
       produces:
@@ -1978,6 +2246,42 @@ paths:
       summary: Update branding settings
       tags:
       - tenant
+  /units:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List measurement units
+      tags:
+      - inventory
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Unit
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UnitRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create a measurement unit
+      tags:
+      - inventory
 securityDefinitions:
   BearerAuth:
     in: header

@@ -98,6 +98,9 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	orderHandler := v1.NewOrderHandler(orderSvc, objectStore)
 	promoHandler := v1.NewPromoHandler(promoSvc)
 	kitchenHandler := v1.NewKitchenHandler(orderSvc, deps.Hub, tokens)
+	inventorySvc := service.NewInventoryService(postgres.NewInventoryRepo(deps.DB), auditSvc, deps.Logger)
+	orderSvc.SetInventory(inventorySvc)
+	inventoryHandler := v1.NewInventoryHandler(inventorySvc)
 
 	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler.Health)
@@ -216,6 +219,23 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	api.GET("/kitchen/stream", kitchenHandler.Stream)
 	orderGroup.POST("/orders/:id/priority",
 		middleware.RequirePermission(rbac.PermKitchenWrite), kitchenHandler.SetPriority)
+
+	// ---- inventory routes ----
+	invRead := middleware.RequirePermission(rbac.PermInventoryRead)
+	invWrite := middleware.RequirePermission(rbac.PermInventoryWrite)
+	invGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant())
+	{
+		invGroup.GET("/units", invRead, inventoryHandler.ListUnits)
+		invGroup.POST("/units", invWrite, inventoryHandler.CreateUnit)
+		invGroup.GET("/inventory/items", invRead, inventoryHandler.ListItems)
+		invGroup.POST("/inventory/items", invWrite, inventoryHandler.CreateItem)
+		invGroup.PUT("/inventory/items/:id", invWrite, inventoryHandler.UpdateItem)
+		invGroup.DELETE("/inventory/items/:id", invWrite, inventoryHandler.DeleteItem)
+		invGroup.GET("/inventory/movements", invRead, inventoryHandler.ListMovements)
+		invGroup.POST("/inventory/movements", invWrite, inventoryHandler.Move)
+		invGroup.GET("/products/:id/recipe", invRead, inventoryHandler.GetRecipe)
+		invGroup.PUT("/products/:id/recipe", invWrite, inventoryHandler.SaveRecipe)
+	}
 
 	// ---- super-admin routes ----
 	adminGroup := api.Group("/admin", middleware.Auth(tokens), middleware.RequireSuperAdmin())

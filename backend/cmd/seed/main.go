@@ -142,7 +142,10 @@ func run(ctx context.Context, db *pgxpool.Pool, logger *slog.Logger) error {
 		logger.Info("added member", "email", ru.email, "role", ru.role)
 	}
 
-	return seedMenu(ctx, db, teresa.ID, logger)
+	if err := seedMenu(ctx, db, teresa.ID, logger); err != nil {
+		return err
+	}
+	return seedInventory(ctx, db, teresa.ID, logger)
 }
 
 // ensureUser fetches by email or creates when missing.

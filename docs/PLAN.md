@@ -2,7 +2,7 @@
 
 Full-PRD build (`first-prompt.md`) in sequential phases. The system must stay runnable after every phase; each phase ends with browser/API verification and one conventional commit.
 
-**Status: Phases 0–6 DONE ✅ · Continue from Phase 7 (Inventory core).**
+**Status: Phases 0–7 DONE ✅ · Continue from Phase 8 (Suppliers, POs, low-stock alerts).**
 
 ## Requirements beyond the PRD (user decisions)
 
@@ -39,9 +39,8 @@ Discounts + coupons (atomic max_uses redemption, released on void), order-level 
 
 ## Remaining phases
 
-### ⬜ Phase 7 — Inventory core
-Units, inventory_items (ingredient/finished_good, current_stock, reorder_level, cost), recipes/BOM per product, append-only inventory_movements ledger (qty_before/after) updating stock atomically (Redis lock `inv:{tenant}:{item}` + SELECT FOR UPDATE); recipe deduction on order completion (idempotent by order_id); adjustments; movement history. Seed sample ingredients + recipes. UI: item table with stock badges, stock in/out dialogs, recipe builder on product form, movement history.
-Verify: selling Katsudon deducts per recipe; concurrent orders don't double-deduct.
+### ✅ Phase 7 — Inventory core
+Units/items/recipe_items (single-table BOM keyed by product_id)/inventory_movements. `InventoryRepo.Apply` = SELECT FOR UPDATE row lock + ledger insert with qty_before/after in one tx (no Redis lock needed). `DeductForOrder` idempotent via HasMovements(order, sale) — runs on Pay + PaySplit completion; failures logged, never block the sale. Routes under inventory:read/write; recipes GET/PUT /products/:id/recipe. Seed: kg/pcs/L units, 7 items, recipes for Katsudon/Pork Tapa/C2 Solo. UI: /inventory page (stock badges OK/Low/Out, move dialog stock_in/out/adjustment/waste with required reason, per-item history), RecipeDialog on products panel (ChefHat button). Verified: 2× Katsudon → Rice -0.4/Pork -0.3/Egg -2/Oil -0.1 with exact ledger chain; settle retry 422 no double-deduct; two concurrent payments deducted exactly once each.
 
 ### ⬜ Phase 8 — Suppliers, purchase orders, low-stock alerts
 Suppliers CRUD; PO lifecycle draft→ordered→receive partial/full (movements + cost update); stock_alerts on reorder level; alerts list/acknowledge. UI: suppliers, PO builder, receive screen, low-stock dashboard widget.

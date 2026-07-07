@@ -28,8 +28,20 @@ type OrderService struct {
 	discounts promo.DiscountRepository
 	coupons   promo.CouponRepository
 	hub       *realtime.Hub
+	inventory *InventoryService
 	auditor   *AuditService
 	logger    *slog.Logger
+}
+
+// SetInventory attaches the inventory service after construction
+// (both live in this package; avoids a constructor cycle).
+func (s *OrderService) SetInventory(inv *InventoryService) { s.inventory = inv }
+
+// deductInventory runs recipe deduction after an order completes.
+func (s *OrderService) deductInventory(ctx context.Context, tenantID, userID string, o *order.Order) {
+	if s.inventory != nil {
+		s.inventory.DeductForOrder(ctx, tenantID, userID, o)
+	}
 }
 
 type OrderServiceDeps struct {
@@ -355,6 +367,7 @@ func (s *OrderService) Pay(ctx context.Context, tenantID, userID, orderID string
 	if o.Status == order.StatusHeld {
 		s.fireToKitchen(ctx, tenantID, o) // settled straight from hold
 	}
+	s.deductInventory(ctx, tenantID, userID, o)
 	return s.orders.GetByID(ctx, tenantID, orderID)
 }
 

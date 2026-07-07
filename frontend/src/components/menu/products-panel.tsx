@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ImagePlus, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChefHat, ImagePlus, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 
 import {
   useCategories,
@@ -12,6 +12,7 @@ import {
 import { formatCentavos } from "@/lib/currency";
 import type { Product } from "@/types/catalog";
 import { ProductFormDialog } from "@/components/menu/product-form-dialog";
+import { RecipeDialog } from "@/components/menu/recipe-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,6 +53,7 @@ export function ProductsPanel({ canWrite }: { canWrite: boolean }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState<Product | null>(null);
+  const [recipeProduct, setRecipeProduct] = useState<Product | null>(null);
   const [uploadTarget, setUploadTarget] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -205,6 +207,14 @@ export function ProductsPanel({ canWrite }: { canWrite: boolean }) {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label={`Recipe for ${p.name}`}
+                          onClick={() => setRecipeProduct(p)}
+                        >
+                          <ChefHat className="size-4" aria-hidden />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           aria-label={`Edit ${p.name}`}
                           onClick={() => {
                             setEditing(p);
@@ -254,6 +264,7 @@ export function ProductsPanel({ canWrite }: { canWrite: boolean }) {
       )}
 
       <ProductFormDialog open={formOpen} onOpenChange={setFormOpen} product={editing} />
+      <RecipeDialog product={recipeProduct} onClose={() => setRecipeProduct(null)} />
 
       <AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
         <AlertDialogContent>
