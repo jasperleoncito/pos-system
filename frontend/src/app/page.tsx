@@ -13,6 +13,10 @@ export default function Home() {
 
   useEffect(() => {
     if (!isReady) return;
+    if (auth?.user.is_super_admin) {
+      router.replace("/admin/tenants");
+      return;
+    }
     const slug = auth?.activeTenant?.tenant_slug;
     router.replace(auth && slug ? `/${slug}/dashboard` : "/login");
   }, [isReady, auth, router]);

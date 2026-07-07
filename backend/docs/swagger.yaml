@@ -70,12 +70,59 @@ definitions:
     - new_password
     - token
     type: object
+  dto.SetTenantStatusRequest:
+    properties:
+      status:
+        enum:
+        - active
+        - suspended
+        type: string
+    required:
+    - status
+    type: object
   dto.SwitchTenantRequest:
     properties:
       tenant_id:
         type: string
     required:
     - tenant_id
+    type: object
+  dto.UpdateTenantSettingsRequest:
+    properties:
+      accent_color:
+        type: string
+      address:
+        maxLength: 400
+        type: string
+      contact_number:
+        maxLength: 40
+        type: string
+      facebook:
+        maxLength: 200
+        type: string
+      primary_color:
+        type: string
+      receipt_footer:
+        maxLength: 500
+        type: string
+      receipt_header:
+        maxLength: 500
+        type: string
+      secondary_color:
+        type: string
+      tax_id:
+        maxLength: 60
+        type: string
+      tax_label:
+        maxLength: 60
+        type: string
+      website:
+        maxLength: 200
+        type: string
+    required:
+    - accent_color
+    - primary_color
+    - secondary_color
     type: object
   dto.VerifyEmailRequest:
     properties:
@@ -120,6 +167,57 @@ info:
   title: POS System API
   version: "1.0"
 paths:
+  /admin/tenants:
+    get:
+      parameters:
+      - description: Page (1-based)
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List all tenants (super admin)
+      tags:
+      - admin
+  /admin/tenants/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New status
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SetTenantStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Activate or suspend a tenant (super admin)
+      tags:
+      - admin
   /auth/forgot-password:
     post:
       consumes:
@@ -394,6 +492,68 @@ paths:
       summary: Health check
       tags:
       - system
+  /tenant/logo:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: PNG/JPG/WEBP, max 10MB
+        in: formData
+        name: logo
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Upload the business logo (optimized to WebP automatically)
+      tags:
+      - tenant
+  /tenant/settings:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get the active business's branding settings
+      tags:
+      - tenant
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Branding fields
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateTenantSettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update branding settings
+      tags:
+      - tenant
 securityDefinitions:
   BearerAuth:
     in: header

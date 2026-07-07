@@ -12,11 +12,13 @@ import (
 	ginswagger "github.com/swaggo/gin-swagger"
 
 	"github.com/jasperleoncito/pos-system/backend/internal/config"
+	"github.com/jasperleoncito/pos-system/backend/internal/domain/rbac"
 	v1 "github.com/jasperleoncito/pos-system/backend/internal/handler/v1"
 	"github.com/jasperleoncito/pos-system/backend/internal/middleware"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/mailer"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/response"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/token"
+	"github.com/jasperleoncito/pos-system/backend/internal/repository/miniostore"
 	"github.com/jasperleoncito/pos-system/backend/internal/repository/postgres"
 	redisrepo "github.com/jasperleoncito/pos-system/backend/internal/repository/redis"
 	"github.com/jasperleoncito/pos-system/backend/internal/service"
@@ -60,6 +62,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	membershipRepo := postgres.NewMembershipRepo(deps.DB)
 	auditRepo := postgres.NewAuditRepo(deps.DB)
 	otpStore := redisrepo.NewTokenStore(deps.Redis)
+	objectStore := miniostore.New(deps.MinIO, deps.Config.MinIO.Bucket, deps.Config.MinIO.PublicBaseURL)
 
 	// ---- services ----
 	auditSvc := service.NewAuditService(auditRepo, deps.Logger)
@@ -68,10 +71,12 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		Memberships: membershipRepo, Tokens: tokens, OTP: otpStore, Mailer: mail,
 		Auditor: auditSvc, Logger: deps.Logger, AppBaseURL: deps.Config.HTTP.CORSOrigins,
 	})
+	tenantSvc := service.NewTenantService(tenantRepo, settingsRepo, objectStore, auditSvc, deps.Logger)
 
 	// ---- handlers ----
 	healthHandler := v1.NewHealthHandler(deps.DB, deps.Redis, deps.MinIO, deps.Config.MinIO.Bucket)
 	authHandler := v1.NewAuthHandler(authSvc)
+	tenantHandler := v1.NewTenantHandler(tenantSvc)
 
 	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler.Health)
@@ -100,6 +105,24 @@ func NewRouter(deps Dependencies) *gin.Engine {
 			authed.POST("/resend-verification", authHandler.ResendVerification)
 			authed.POST("/switch-tenant", authHandler.SwitchTenant)
 		}
+	}
+
+	// ---- tenant branding routes ----
+	tenantGroup := api.Group("/tenant", middleware.Auth(tokens), middleware.RequireTenant())
+	{
+		// Readable by every member — branding must theme all roles' UI.
+		tenantGroup.GET("/settings", tenantHandler.GetSettings)
+		tenantGroup.PUT("/settings",
+			middleware.RequirePermission(rbac.PermTenantSettingsWrite), tenantHandler.UpdateSettings)
+		tenantGroup.POST("/logo",
+			middleware.RequirePermission(rbac.PermTenantSettingsWrite), tenantHandler.UploadLogo)
+	}
+
+	// ---- super-admin routes ----
+	adminGroup := api.Group("/admin", middleware.Auth(tokens), middleware.RequireSuperAdmin())
+	{
+		adminGroup.GET("/tenants", tenantHandler.AdminListTenants)
+		adminGroup.PATCH("/tenants/:id/status", tenantHandler.AdminSetTenantStatus)
 	}
 
 	return r

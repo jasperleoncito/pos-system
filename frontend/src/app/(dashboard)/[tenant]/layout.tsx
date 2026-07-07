@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import { useAuth } from "@/hooks/use-auth";
+import { useTenantSettings } from "@/hooks/use-tenant";
+import { tenantThemeVars } from "@/lib/theme";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,8 +19,19 @@ export default function TenantLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const params = useParams<{ tenant: string }>();
   const { auth, isReady } = useAuth();
+  const { data: settings } = useTenantSettings();
 
   const activeSlug = auth?.activeTenant?.tenant_slug;
+
+  // Tenant branding recolors the whole shell via CSS variables.
+  const themeStyle = useMemo<CSSProperties | undefined>(() => {
+    if (!settings) return undefined;
+    return tenantThemeVars({
+      primary: settings.primary_color,
+      secondary: settings.secondary_color,
+      accent: settings.accent_color,
+    }) as CSSProperties;
+  }, [settings]);
 
   useEffect(() => {
     if (!isReady) return;
@@ -51,7 +64,7 @@ export default function TenantLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-dvh">
+    <div className="flex min-h-dvh" style={themeStyle}>
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 border-r bg-sidebar lg:block">
         <AppSidebar auth={auth} tenantSlug={params.tenant} />
       </aside>

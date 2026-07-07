@@ -15,6 +15,89 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/tenants": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List all tenants (super admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page (1-based)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/tenants/{id}/status": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Activate or suspend a tenant (super admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tenant ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New status",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SetTenantStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/forgot-password": {
             "post": {
                 "consumes": [
@@ -450,6 +533,108 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/tenant/logo": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tenant"
+                ],
+                "summary": "Upload the business logo (optimized to WebP automatically)",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "PNG/JPG/WEBP, max 10MB",
+                        "name": "logo",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/tenant/settings": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tenant"
+                ],
+                "summary": "Get the active business's branding settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tenant"
+                ],
+                "summary": "Update branding settings",
+                "parameters": [
+                    {
+                        "description": "Branding fields",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateTenantSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -553,6 +738,21 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.SetTenantStatusRequest": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "suspended"
+                    ]
+                }
+            }
+        },
         "dto.SwitchTenantRequest": {
             "type": "object",
             "required": [
@@ -561,6 +761,57 @@ const docTemplate = `{
             "properties": {
                 "tenant_id": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.UpdateTenantSettingsRequest": {
+            "type": "object",
+            "required": [
+                "accent_color",
+                "primary_color",
+                "secondary_color"
+            ],
+            "properties": {
+                "accent_color": {
+                    "type": "string"
+                },
+                "address": {
+                    "type": "string",
+                    "maxLength": 400
+                },
+                "contact_number": {
+                    "type": "string",
+                    "maxLength": 40
+                },
+                "facebook": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "primary_color": {
+                    "type": "string"
+                },
+                "receipt_footer": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "receipt_header": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "secondary_color": {
+                    "type": "string"
+                },
+                "tax_id": {
+                    "type": "string",
+                    "maxLength": 60
+                },
+                "tax_label": {
+                    "type": "string",
+                    "maxLength": 60
+                },
+                "website": {
+                    "type": "string",
+                    "maxLength": 200
                 }
             }
         },

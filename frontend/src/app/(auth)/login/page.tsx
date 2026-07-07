@@ -24,8 +24,12 @@ export default function LoginPage() {
   const onSubmit = handleSubmit((input) => {
     login.mutate(input, {
       onSuccess: (result) => {
+        if (result.user.is_super_admin) {
+          router.replace("/admin/tenants");
+          return;
+        }
         const slug = result.active_tenant?.tenant_slug;
-        router.replace(slug ? `/${slug}/dashboard` : "/select-business");
+        router.replace(slug ? `/${slug}/dashboard` : "/login");
       },
     });
   });
