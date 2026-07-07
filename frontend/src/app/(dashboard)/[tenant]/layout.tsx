@@ -1,0 +1,64 @@
+"use client";
+
+import { useEffect, type ReactNode } from "react";
+import { useParams, useRouter } from "next/navigation";
+
+import { useAuth } from "@/hooks/use-auth";
+import { AppSidebar } from "@/components/layout/app-sidebar";
+import { Topbar } from "@/components/layout/topbar";
+import { Skeleton } from "@/components/ui/skeleton";
+
+/**
+ * Client-side guard + app shell for tenant-scoped pages. Redirects to
+ * /login when unauthenticated, and re-homes the URL when it doesn't
+ * match the active tenant slug.
+ */
+export default function TenantLayout({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const params = useParams<{ tenant: string }>();
+  const { auth, isReady } = useAuth();
+
+  const activeSlug = auth?.activeTenant?.tenant_slug;
+
+  useEffect(() => {
+    if (!isReady) return;
+    if (!auth) {
+      router.replace("/login");
+      return;
+    }
+    if (activeSlug && params.tenant !== activeSlug) {
+      router.replace(`/${activeSlug}/dashboard`);
+    }
+  }, [isReady, auth, activeSlug, params.tenant, router]);
+
+  if (!isReady || !auth || (activeSlug && params.tenant !== activeSlug)) {
+    return (
+      <div className="flex min-h-dvh">
+        <div className="hidden w-64 border-r p-4 lg:block">
+          <Skeleton className="mb-4 h-10 w-full" />
+          <div className="space-y-2">
+            {Array.from({ length: 8 }, (_, i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 p-6">
+          <Skeleton className="mb-6 h-14 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-dvh">
+      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 border-r bg-sidebar lg:block">
+        <AppSidebar auth={auth} tenantSlug={params.tenant} />
+      </aside>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Topbar auth={auth} tenantSlug={params.tenant} />
+        <main className="flex-1 p-4 sm:p-6">{children}</main>
+      </div>
+    </div>
+  );
+}

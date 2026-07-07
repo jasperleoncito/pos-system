@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS device_sessions;
+DROP TABLE IF EXISTS tenant_users;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS tenant_settings;
+DROP TABLE IF EXISTS tenants;

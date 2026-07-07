@@ -27,8 +27,9 @@ swag:
 
 test: test-backend
 
+# Runs inside the backend container: Windows hosts lack gcc for -race.
 test-backend:
-	cd backend && go test -race ./...
+	docker compose exec backend go test -race ./...
 
 lint:
 	cd backend && go vet ./...

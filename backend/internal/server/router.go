@@ -2,6 +2,7 @@ package server
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,7 +14,12 @@ import (
 	"github.com/jasperleoncito/pos-system/backend/internal/config"
 	v1 "github.com/jasperleoncito/pos-system/backend/internal/handler/v1"
 	"github.com/jasperleoncito/pos-system/backend/internal/middleware"
+	"github.com/jasperleoncito/pos-system/backend/internal/pkg/mailer"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/response"
+	"github.com/jasperleoncito/pos-system/backend/internal/pkg/token"
+	"github.com/jasperleoncito/pos-system/backend/internal/repository/postgres"
+	redisrepo "github.com/jasperleoncito/pos-system/backend/internal/repository/redis"
+	"github.com/jasperleoncito/pos-system/backend/internal/service"
 )
 
 // Dependencies groups the shared infrastructure clients used to wire
@@ -41,13 +47,59 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		response.Error(c, 404, "route not found")
 	})
 
-	api := r.Group("/api/v1")
+	// ---- shared packages ----
+	tokens := token.NewManager(deps.Config.JWT.Secret, deps.Config.JWT.AccessTokenTTL, deps.Config.JWT.RefreshTokenTTL)
+	mail := mailer.New(deps.Config.SMTP.Host, deps.Config.SMTP.Port, deps.Config.SMTP.User,
+		deps.Config.SMTP.Password, deps.Config.SMTP.From)
 
+	// ---- repositories ----
+	userRepo := postgres.NewUserRepo(deps.DB)
+	sessionRepo := postgres.NewSessionRepo(deps.DB)
+	tenantRepo := postgres.NewTenantRepo(deps.DB)
+	settingsRepo := postgres.NewTenantSettingsRepo(deps.DB)
+	membershipRepo := postgres.NewMembershipRepo(deps.DB)
+	auditRepo := postgres.NewAuditRepo(deps.DB)
+	otpStore := redisrepo.NewTokenStore(deps.Redis)
+
+	// ---- services ----
+	auditSvc := service.NewAuditService(auditRepo, deps.Logger)
+	authSvc := service.NewAuthService(service.AuthServiceDeps{
+		Users: userRepo, Sessions: sessionRepo, Tenants: tenantRepo, Settings: settingsRepo,
+		Memberships: membershipRepo, Tokens: tokens, OTP: otpStore, Mailer: mail,
+		Auditor: auditSvc, Logger: deps.Logger, AppBaseURL: deps.Config.HTTP.CORSOrigins,
+	})
+
+	// ---- handlers ----
 	healthHandler := v1.NewHealthHandler(deps.DB, deps.Redis, deps.MinIO, deps.Config.MinIO.Bucket)
+	authHandler := v1.NewAuthHandler(authSvc)
+
+	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler.Health)
 
 	if !deps.Config.App.IsProduction() {
 		api.GET("/docs/*any", ginswagger.WrapHandler(swaggerfiles.Handler))
+	}
+
+	// ---- auth routes ----
+	authLimiter := middleware.RateLimit(deps.Redis, "auth", 20, time.Minute)
+	authGroup := api.Group("/auth")
+	{
+		authGroup.POST("/register", authLimiter, authHandler.Register)
+		authGroup.POST("/login", authLimiter, authHandler.Login)
+		authGroup.POST("/refresh", authLimiter, authHandler.Refresh)
+		authGroup.POST("/logout", authHandler.Logout)
+		authGroup.POST("/forgot-password", authLimiter, authHandler.ForgotPassword)
+		authGroup.POST("/reset-password", authLimiter, authHandler.ResetPassword)
+		authGroup.POST("/verify-email", authLimiter, authHandler.VerifyEmail)
+
+		authed := authGroup.Group("", middleware.Auth(tokens))
+		{
+			authed.POST("/logout-all", authHandler.LogoutAll)
+			authed.GET("/sessions", authHandler.Sessions)
+			authed.DELETE("/sessions/:id", authHandler.RevokeSession)
+			authed.POST("/resend-verification", authHandler.ResendVerification)
+			authed.POST("/switch-tenant", authHandler.SwitchTenant)
+		}
 	}
 
 	return r
