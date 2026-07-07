@@ -2,7 +2,7 @@
 
 Full-PRD build (`first-prompt.md`) in sequential phases. The system must stay runnable after every phase; each phase ends with browser/API verification and one conventional commit.
 
-**Status: Phases 0–8 DONE ✅ · Continue from Phase 9 (Employees, schedules, attendance).**
+**Status: Phases 0–9 DONE ✅ · Continue from Phase 10 (Customers & loyalty).**
 
 ## Requirements beyond the PRD (user decisions)
 
@@ -45,8 +45,8 @@ Units/items/recipe_items (single-table BOM keyed by product_id)/inventory_moveme
 ### ✅ Phase 8 — Suppliers, purchase orders, low-stock alerts
 Suppliers CRUD, PO lifecycle draft→ordered→partially_received→received (per-line receive → po_receive ledger movements + item cost update), cancel. stock_alerts raised by InventoryService.checkAlert after every movement (AlertSink interface → ProcureRepo; one open alert per item via partial unique index; out_of_stock vs low_stock). Routes under inventory:read/write. UI: /inventory/procurement page (PO + Suppliers tabs, receive dialog defaults to remaining), alerts banner with Acknowledge on /inventory. Verified: 10kg Rice PO received 6+4 with status transitions, stock 49→59, cost → ₱62; stock_out below reorder raised low_stock alert; ack cleared it.
 
-### ⬜ Phase 9 — Employees, schedules, attendance
-Employees (optional user link, salary type/rate, photo via pipeline), weekly schedules with grace minutes, clock in/out (server time) computing late/early-out/overtime/breaks, manager approval, attendance reports. UI: directory + profile, schedule grid, big-button self-service clock page, review + report table.
+### ✅ Phase 9 — Employees, schedules, attendance
+employees (optional unique user link per tenant, salary hourly/daily/monthly BIGINT centavos, photo via WebP pipeline)/employee_schedules (weekly template, day_of_week 0–6, TIME columns, grace 0–240m)/attendance_records (schedule snapshot at clock-in, one open shift per employee via partial unique index). Clock math in EmployeeService uses server time in the tenant's timezone (`tenantNow`): late = clock_in − (start+grace), early-out/overtime vs snapshot end, breaks accumulate via break_start; approval only for completed pending records (manager+, attendance:approve). Self-service routes need only a linked user (attendance:clock, every role). Dialog-portal theming fixed: brand CSS vars now mirrored onto `<html>` so Radix portals stay branded. Seed: 5 staff (4 linked to role accounts) with Mon–Sat 09:00–17:00 grace 10. UI: /employees directory (avatars, salary, schedule grid dialog, photo upload), /attendance big-button clock (live time, on-shift/break badges) + filterable review table with Approve. Verified E2E: clock-in Manila TZ snapshot 09:00+08:00, double clock-in 409, break accumulation, early-out 783m, employee role 403 on /employees + /attendance, double-approve 422, browser flow incl. 375px.
 
 ### ⬜ Phase 10 — Customers & loyalty
 Customers (points_balance, tier, birthday, purchase history), membership tiers (Silver/Gold/VIP) with multipliers, loyalty_transactions ledger (balance_after), loyalty settings (earn rate, redemption value); earn on completion, redeem at POS, auto tier upgrade. UI: customer table/profile, attach-customer at POS, redeem points in payment dialog.

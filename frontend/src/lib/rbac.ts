@@ -21,6 +21,7 @@ export type Permission =
   | "employees:write"
   | "attendance:clock"
   | "attendance:read"
+  | "attendance:approve"
   | "customers:read"
   | "customers:write"
   | "reports:read"
@@ -34,7 +35,7 @@ const ALL: Permission[] = [
   "kitchen:read",
   "inventory:read", "inventory:write",
   "employees:read", "employees:write",
-  "attendance:clock", "attendance:read",
+  "attendance:clock", "attendance:read", "attendance:approve",
   "customers:read", "customers:write",
   "reports:read", "analytics:read", "audit:read",
 ];
@@ -48,7 +49,7 @@ const MATRIX: Record<Role, Permission[]> = {
     "kitchen:read",
     "inventory:read", "inventory:write",
     "employees:read", "employees:write",
-    "attendance:clock", "attendance:read",
+    "attendance:clock", "attendance:read", "attendance:approve",
     "customers:read", "customers:write",
     "reports:read", "analytics:read",
   ],

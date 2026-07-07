@@ -1,6 +1,6 @@
 # POS System — Project Instructions
 
-Multi-tenant restaurant POS SaaS (PRD in `first-prompt.md`). Built in phases — **see `docs/PLAN.md` for the full phase plan and current progress**. Phases 0–5 are DONE; continue from Phase 6 (Kitchen Display).
+Multi-tenant restaurant POS SaaS (PRD in `first-prompt.md`). Built in phases — **see `docs/PLAN.md` for the full phase plan and current progress**. Phases 0–9 are DONE; continue from Phase 10 (Customers & loyalty).
 
 ## Golden rules
 

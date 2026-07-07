@@ -105,6 +105,9 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	inventorySvc.SetAlertSink(procureRepo)
 	procureSvc := service.NewProcureService(procureRepo, inventorySvc, auditSvc, deps.Logger)
 	procureHandler := v1.NewProcureHandler(procureSvc)
+	employeeSvc := service.NewEmployeeService(postgres.NewEmployeeRepo(deps.DB),
+		userRepo, membershipRepo, tenantRepo, objectStore, auditSvc, deps.Logger)
+	employeeHandler := v1.NewEmployeeHandler(employeeSvc)
 
 	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler.Health)
@@ -252,6 +255,34 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		invGroup.POST("/purchase-orders/:id/receive", invWrite, procureHandler.ReceivePO)
 		invGroup.GET("/inventory/alerts", invRead, procureHandler.ListAlerts)
 		invGroup.POST("/inventory/alerts/:id/ack", invWrite, procureHandler.AckAlert)
+	}
+
+	// ---- employee & attendance routes ----
+	empRead := middleware.RequirePermission(rbac.PermEmployeesRead)
+	empWrite := middleware.RequirePermission(rbac.PermEmployeesWrite)
+	empGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant())
+	{
+		empGroup.GET("/employees", empRead, employeeHandler.ListEmployees)
+		empGroup.GET("/employees/:id", empRead, employeeHandler.GetEmployee)
+		empGroup.POST("/employees", empWrite, employeeHandler.CreateEmployee)
+		empGroup.PUT("/employees/:id", empWrite, employeeHandler.UpdateEmployee)
+		empGroup.DELETE("/employees/:id", empWrite, employeeHandler.DeleteEmployee)
+		empGroup.POST("/employees/:id/photo", empWrite, employeeHandler.UploadEmployeePhoto)
+		empGroup.GET("/employees/:id/schedule", empRead, employeeHandler.GetSchedule)
+		empGroup.PUT("/employees/:id/schedule", empWrite, employeeHandler.SaveSchedule)
+
+		// Self-service clock — every role has attendance:clock.
+		clock := middleware.RequirePermission(rbac.PermAttendanceClock)
+		empGroup.GET("/attendance/me", clock, employeeHandler.MyClockStatus)
+		empGroup.POST("/attendance/clock-in", clock, employeeHandler.ClockIn)
+		empGroup.POST("/attendance/clock-out", clock, employeeHandler.ClockOut)
+		empGroup.POST("/attendance/break/start", clock, employeeHandler.StartBreak)
+		empGroup.POST("/attendance/break/end", clock, employeeHandler.EndBreak)
+
+		empGroup.GET("/attendance",
+			middleware.RequirePermission(rbac.PermAttendanceRead), employeeHandler.ListAttendance)
+		empGroup.POST("/attendance/:id/approve",
+			middleware.RequirePermission(rbac.PermAttendanceApprove), employeeHandler.ApproveAttendance)
 	}
 
 	// ---- super-admin routes ----

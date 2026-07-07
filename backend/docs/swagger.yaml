@@ -139,6 +139,46 @@ definitions:
     - name
     - type
     type: object
+  dto.EmployeeRequest:
+    properties:
+      address:
+        maxLength: 300
+        type: string
+      email:
+        type: string
+      full_name:
+        maxLength: 120
+        minLength: 1
+        type: string
+      hire_date:
+        type: string
+      is_active:
+        type: boolean
+      notes:
+        maxLength: 500
+        type: string
+      phone:
+        maxLength: 40
+        type: string
+      position:
+        maxLength: 120
+        type: string
+      salary_rate:
+        minimum: 0
+        type: integer
+      salary_type:
+        enum:
+        - hourly
+        - daily
+        - monthly
+        type: string
+      user_email:
+        description: optional login link
+        type: string
+    required:
+    - full_name
+    - salary_type
+    type: object
   dto.ForgotPasswordRequest:
     properties:
       email:
@@ -496,6 +536,31 @@ definitions:
     - new_password
     - token
     type: object
+  dto.SaveScheduleRequest:
+    properties:
+      days:
+        items:
+          $ref: '#/definitions/dto.ScheduleDayInput'
+        type: array
+    type: object
+  dto.ScheduleDayInput:
+    properties:
+      day_of_week:
+        maximum: 6
+        minimum: 0
+        type: integer
+      end_time:
+        type: string
+      grace_minutes:
+        maximum: 240
+        minimum: 0
+        type: integer
+      start_time:
+        type: string
+    required:
+    - end_time
+    - start_time
+    type: object
   dto.SetTenantStatusRequest:
     properties:
       status:
@@ -736,6 +801,123 @@ paths:
       summary: Activate or suspend a tenant (super admin)
       tags:
       - admin
+  /attendance:
+    get:
+      parameters:
+      - description: Filter by employee
+        in: query
+        name: employee_id
+        type: string
+      - description: ISO date (inclusive)
+        in: query
+        name: from
+        type: string
+      - description: ISO date (exclusive)
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List attendance records
+      tags:
+      - attendance
+  /attendance/{id}/approve:
+    post:
+      parameters:
+      - description: Attendance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Approve a completed attendance record (manager+)
+      tags:
+      - attendance
+  /attendance/break/end:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: End the running break
+      tags:
+      - attendance
+  /attendance/break/start:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Start a break on the open shift
+      tags:
+      - attendance
+  /attendance/clock-in:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Clock in (server time; computes lateness vs schedule)
+      tags:
+      - attendance
+  /attendance/clock-out:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Clock out (computes early-out and overtime)
+      tags:
+      - attendance
+  /attendance/me:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Current clock state for the signed-in employee
+      tags:
+      - attendance
   /auth/forgot-password:
     post:
       consumes:
@@ -1345,6 +1527,187 @@ paths:
       summary: Update a discount
       tags:
       - promos
+  /employees:
+    get:
+      parameters:
+      - description: Name or position filter
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List employees
+      tags:
+      - employees
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Employee
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.EmployeeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create an employee
+      tags:
+      - employees
+  /employees/{id}:
+    delete:
+      parameters:
+      - description: Employee ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete an employee
+      tags:
+      - employees
+    get:
+      parameters:
+      - description: Employee ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get one employee
+      tags:
+      - employees
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Employee ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Employee
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.EmployeeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update an employee
+      tags:
+      - employees
+  /employees/{id}/photo:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Employee ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: PNG/JPG/WEBP, max 10MB
+        in: formData
+        name: image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Upload an employee photo (optimized to WebP automatically)
+      tags:
+      - employees
+  /employees/{id}/schedule:
+    get:
+      parameters:
+      - description: Employee ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Get an employee's weekly schedule
+      tags:
+      - employees
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Employee ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Weekly schedule
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SaveScheduleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Replace an employee's weekly schedule
+      tags:
+      - employees
   /health:
     get:
       description: Reports API liveness and dependency status (PostgreSQL, Redis,

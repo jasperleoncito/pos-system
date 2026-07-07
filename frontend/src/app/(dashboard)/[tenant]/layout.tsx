@@ -33,6 +33,22 @@ export default function TenantLayout({ children }: { children: ReactNode }) {
     }) as CSSProperties;
   }, [settings]);
 
+  // Mirror the brand variables onto <html> so Radix portals (dialogs,
+  // dropdowns render on document.body, outside this layout) stay branded.
+  useEffect(() => {
+    if (!themeStyle) return;
+    const root = document.documentElement;
+    const vars = themeStyle as Record<string, string>;
+    for (const [name, value] of Object.entries(vars)) {
+      root.style.setProperty(name, value);
+    }
+    return () => {
+      for (const name of Object.keys(vars)) {
+        root.style.removeProperty(name);
+      }
+    };
+  }, [themeStyle]);
+
   useEffect(() => {
     if (!isReady) return;
     if (!auth) {
