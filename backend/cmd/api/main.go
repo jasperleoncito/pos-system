@@ -29,6 +29,7 @@ import (
 
 	_ "github.com/jasperleoncito/pos-system/backend/docs"
 	"github.com/jasperleoncito/pos-system/backend/internal/config"
+	"github.com/jasperleoncito/pos-system/backend/internal/realtime"
 	"github.com/jasperleoncito/pos-system/backend/internal/server"
 )
 
@@ -77,12 +78,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	hub := realtime.NewHub(rdb, logger)
+	hubCtx, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubCtx)
+
 	router := server.NewRouter(server.Dependencies{
 		Config: cfg,
 		Logger: logger,
 		DB:     db,
 		Redis:  rdb,
 		MinIO:  mc,
+		Hub:    hub,
 	})
 
 	srv := &http.Server{

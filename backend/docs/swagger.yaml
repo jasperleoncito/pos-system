@@ -135,6 +135,18 @@ definitions:
       hold:
         type: boolean
     type: object
+  dto.KitchenStatusRequest:
+    properties:
+      status:
+        enum:
+        - pending
+        - preparing
+        - ready
+        - completed
+        type: string
+    required:
+    - status
+    type: object
   dto.LoginRequest:
     properties:
       email:
@@ -245,6 +257,11 @@ definitions:
     required:
     - amount
     - method
+    type: object
+  dto.PriorityRequest:
+    properties:
+      priority:
+        type: boolean
     type: object
   dto.ProductRequest:
     properties:
@@ -1188,6 +1205,103 @@ paths:
       summary: Health check
       tags:
       - system
+  /kitchen/orders:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List active kitchen tickets
+      tags:
+      - kitchen
+  /kitchen/orders/{id}/items/{itemId}/status:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Order item ID
+        in: path
+        name: itemId
+        required: true
+        type: string
+      - description: New status
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.KitchenStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Set one item's kitchen status
+      tags:
+      - kitchen
+  /kitchen/orders/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New status
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.KitchenStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Advance a ticket's kitchen status
+      tags:
+      - kitchen
+  /kitchen/stream:
+    get:
+      description: EventSource cannot send headers, so the access token travels as
+        ?token=
+      parameters:
+      - description: Access token
+        in: query
+        name: token
+        required: true
+        type: string
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorEnvelope'
+      summary: Kitchen event stream (SSE)
+      tags:
+      - kitchen
   /modifier-groups:
     get:
       produces:
@@ -1404,6 +1518,34 @@ paths:
       summary: Settle an order with one or more payments (mixed methods)
       tags:
       - orders
+  /orders/{id}/priority:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Priority flag
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PriorityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Flag or unflag a rush order
+      tags:
+      - kitchen
   /orders/{id}/receipt:
     get:
       parameters:

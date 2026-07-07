@@ -13,6 +13,7 @@ import (
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/promo"
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/tenant"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/apperror"
+	"github.com/jasperleoncito/pos-system/backend/internal/realtime"
 )
 
 // OrderService owns the sale lifecycle: create/hold/resume, payments,
@@ -26,6 +27,7 @@ type OrderService struct {
 	tenants   tenant.Repository
 	discounts promo.DiscountRepository
 	coupons   promo.CouponRepository
+	hub       *realtime.Hub
 	auditor   *AuditService
 	logger    *slog.Logger
 }
@@ -39,6 +41,7 @@ type OrderServiceDeps struct {
 	Tenants   tenant.Repository
 	Discounts promo.DiscountRepository
 	Coupons   promo.CouponRepository
+	Hub       *realtime.Hub
 	Auditor   *AuditService
 	Logger    *slog.Logger
 }
@@ -47,7 +50,7 @@ func NewOrderService(d OrderServiceDeps) *OrderService {
 	return &OrderService{
 		orders: d.Orders, drawer: d.Drawer, products: d.Products, taxes: d.Taxes,
 		settings: d.Settings, tenants: d.Tenants, discounts: d.Discounts, coupons: d.Coupons,
-		auditor: d.Auditor, logger: d.Logger,
+		hub: d.Hub, auditor: d.Auditor, logger: d.Logger,
 	}
 }
 
@@ -145,6 +148,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, tenantID, userID string,
 		EntityType: "order", EntityID: o.ID,
 		After: map[string]any{"order_number": o.OrderNumber, "total": o.Total, "status": o.Status},
 	})
+	if !in.Hold {
+		s.fireToKitchen(ctx, tenantID, o)
+	}
 	return s.orders.GetByID(ctx, tenantID, o.ID)
 }
 
@@ -265,6 +271,9 @@ func (s *OrderService) SetHold(ctx context.Context, tenantID, userID, orderID st
 	if err := s.orders.AddStatusHistory(ctx, tenantID, orderID, "status", o.Status, target, userID); err != nil {
 		return nil, err
 	}
+	if target == order.StatusOpen {
+		s.fireToKitchen(ctx, tenantID, o) // resumed orders hit the kitchen now
+	}
 	return s.orders.GetByID(ctx, tenantID, orderID)
 }
 
@@ -343,6 +352,9 @@ func (s *OrderService) Pay(ctx context.Context, tenantID, userID, orderID string
 		EntityType: "order", EntityID: orderID,
 		After: map[string]any{"total": total, "tendered": tendered, "change": change},
 	})
+	if o.Status == order.StatusHeld {
+		s.fireToKitchen(ctx, tenantID, o) // settled straight from hold
+	}
 	return s.orders.GetByID(ctx, tenantID, orderID)
 }
 

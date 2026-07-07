@@ -18,6 +18,7 @@ import (
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/mailer"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/response"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/token"
+	"github.com/jasperleoncito/pos-system/backend/internal/realtime"
 	"github.com/jasperleoncito/pos-system/backend/internal/repository/miniostore"
 	"github.com/jasperleoncito/pos-system/backend/internal/repository/postgres"
 	redisrepo "github.com/jasperleoncito/pos-system/backend/internal/repository/redis"
@@ -32,6 +33,7 @@ type Dependencies struct {
 	DB     *pgxpool.Pool
 	Redis  *goredis.Client
 	MinIO  *minio.Client
+	Hub    *realtime.Hub
 }
 
 // NewRouter builds the Gin engine with all middleware and routes registered.
@@ -84,7 +86,8 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	orderSvc := service.NewOrderService(service.OrderServiceDeps{
 		Orders: postgres.NewOrderRepo(deps.DB), Drawer: postgres.NewDrawerRepo(deps.DB),
 		Products: productRepo, Taxes: taxRepo, Settings: settingsRepo, Tenants: tenantRepo,
-		Discounts: discountRepo, Coupons: couponRepo, Auditor: auditSvc, Logger: deps.Logger,
+		Discounts: discountRepo, Coupons: couponRepo, Hub: deps.Hub,
+		Auditor: auditSvc, Logger: deps.Logger,
 	})
 
 	// ---- handlers ----
@@ -94,6 +97,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	catalogHandler := v1.NewCatalogHandler(catalogSvc)
 	orderHandler := v1.NewOrderHandler(orderSvc, objectStore)
 	promoHandler := v1.NewPromoHandler(promoSvc)
+	kitchenHandler := v1.NewKitchenHandler(orderSvc, deps.Hub, tokens)
 
 	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler.Health)
@@ -198,6 +202,20 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		orderGroup.DELETE("/coupons/:id", catalogWrite, promoHandler.DeleteCoupon)
 		orderGroup.POST("/coupons/validate", ordersCreate, promoHandler.ValidateCoupon)
 	}
+
+	// ---- kitchen display routes ----
+	kitchenRead := middleware.RequirePermission(rbac.PermKitchenRead)
+	kitchenWrite := middleware.RequirePermission(rbac.PermKitchenWrite)
+	kitchenGroup := api.Group("/kitchen", middleware.Auth(tokens), middleware.RequireTenant())
+	{
+		kitchenGroup.GET("/orders", kitchenRead, kitchenHandler.ListOrders)
+		kitchenGroup.PATCH("/orders/:id/status", kitchenWrite, kitchenHandler.SetStatus)
+		kitchenGroup.PATCH("/orders/:id/items/:itemId/status", kitchenWrite, kitchenHandler.SetItemStatus)
+	}
+	// SSE stream authenticates via ?token= (EventSource cannot send headers).
+	api.GET("/kitchen/stream", kitchenHandler.Stream)
+	orderGroup.POST("/orders/:id/priority",
+		middleware.RequirePermission(rbac.PermKitchenWrite), kitchenHandler.SetPriority)
 
 	// ---- super-admin routes ----
 	adminGroup := api.Group("/admin", middleware.Auth(tokens), middleware.RequireSuperAdmin())

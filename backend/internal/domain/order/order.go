@@ -205,6 +205,28 @@ type Repository interface {
 	ListRefunds(ctx context.Context, tenantID, orderID string) ([]Refund, error)
 	// RefundedTotal is the amount already refunded on an order.
 	RefundedTotal(ctx context.Context, tenantID, orderID string) (int64, error)
+
+	// ListKitchen returns fired, still-active kitchen tickets.
+	ListKitchen(ctx context.Context, tenantID string) ([]Order, error)
+	UpdateKitchenStatus(ctx context.Context, tenantID, orderID, status string) error
+	UpdateItemStatus(ctx context.Context, tenantID, orderID, itemID, status string) error
+	SetPriority(ctx context.Context, tenantID, orderID string, priority bool) error
+}
+
+// Kitchen statuses in flow order.
+const (
+	KitchenPending   = "pending"
+	KitchenPreparing = "preparing"
+	KitchenReady     = "ready"
+	KitchenCompleted = "completed"
+)
+
+func ValidKitchenStatus(s string) bool {
+	switch s {
+	case KitchenPending, KitchenPreparing, KitchenReady, KitchenCompleted:
+		return true
+	}
+	return false
 }
 
 type DrawerRepository interface {

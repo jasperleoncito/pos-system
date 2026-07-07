@@ -2,7 +2,7 @@
 
 Full-PRD build (`first-prompt.md`) in sequential phases. The system must stay runnable after every phase; each phase ends with browser/API verification and one conventional commit.
 
-**Status: Phases 0–5 DONE ✅ · Continue from Phase 6.**
+**Status: Phases 0–6 DONE ✅ · Continue from Phase 7 (Inventory core).**
 
 ## Requirements beyond the PRD (user decisions)
 
@@ -32,14 +32,12 @@ Orders (per-tenant numbers via order_counters upsert), server-side pricing + sna
 ### ✅ Phase 5 — Discounts, coupons, splits, refunds, voids (commit `db9e52c`)
 Discounts + coupons (atomic max_uses redemption, released on void), order-level promo at creation, split bills (amounts sum to total, per-split payments, completes when all paid), refunds (manager+, capped at remaining, drawer -amount), voids (manager+, reason, net cash returned). Frontend: /promos page, POS Promo + Split-bill dialogs, /orders history with role-gated Refund/Void. Verified: max_uses=1 reuse rejected; 2-way split cash+GCash; ₱50 partial refund moved drawer; cashier refund/void 403.
 
+### ✅ Phase 6 — Kitchen Display (realtime)
+`realtime.Hub`: per-tenant SSE subscribers bridged over Redis pub/sub `kitchen:{tenant}` (multi-replica safe, slow consumers dropped not blocked). `GET /kitchen/stream` authenticates via `?token=` (EventSource can't send headers) + 25s heartbeat. Orders fire events on create/resume/settle-from-hold; kitchen_status + item_status + priority all publish. KDS board: New/Preparing/Ready columns, elapsed-time color badges (5m amber/10m red), per-item done toggle, rush badge, Web Audio chime, 10s polling fallback, SSE auto-reconnect with fresh token. Verified: SSE delivered order_fired instantly on cashier order; transitions published; kitchen role 403 on catalog writes.
+
 ---
 
 ## Remaining phases
-
-### ⬜ Phase 6 — Kitchen Display (realtime)
-- Backend: SSE hub + Redis pub/sub channel `kitchen:{tenant_id}`; publish on order create / kitchen_status change. Kitchen ticket view of orders; transitions pending→preparing→ready→completed; per-item status; priority flag endpoint. Routes: `GET /kitchen/orders`, `PATCH /kitchen/orders/:id/status`, `PATCH /kitchen/orders/:id/items/:itemId/status`, `POST /orders/:id/priority`, `GET /kitchen/stream` (SSE — nginx `proxy_buffering off` already configured).
-- Frontend: `/[tenant]/kitchen` full-screen board — columns by status, order cards with items/modifiers/elapsed-time color coding, priority badge, Web Audio sound on new order, touch-friendly advance buttons. Polling fallback via React Query refetch.
-- Verify: two browsers (cashier + kitchen): new POS order appears on KDS ~1s with sound; status flows back; kitchen role sees only KDS routes.
 
 ### ⬜ Phase 7 — Inventory core
 Units, inventory_items (ingredient/finished_good, current_stock, reorder_level, cost), recipes/BOM per product, append-only inventory_movements ledger (qty_before/after) updating stock atomically (Redis lock `inv:{tenant}:{item}` + SELECT FOR UPDATE); recipe deduction on order completion (idempotent by order_id); adjustments; movement history. Seed sample ingredients + recipes. UI: item table with stock badges, stock in/out dialogs, recipe builder on product form, movement history.

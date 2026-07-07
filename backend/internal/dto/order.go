@@ -32,6 +32,14 @@ type HoldOrderRequest struct {
 	Hold bool `json:"hold"`
 }
 
+type KitchenStatusRequest struct {
+	Status string `json:"status" binding:"required,oneof=pending preparing ready completed"`
+}
+
+type PriorityRequest struct {
+	Priority bool `json:"priority"`
+}
+
 type OpenDrawerRequest struct {
 	OpeningFloat int64 `json:"opening_float" binding:"min=0"`
 }
