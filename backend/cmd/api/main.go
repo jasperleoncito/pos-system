@@ -30,6 +30,7 @@ import (
 	_ "github.com/jasperleoncito/pos-system/backend/docs"
 	"github.com/jasperleoncito/pos-system/backend/internal/config"
 	"github.com/jasperleoncito/pos-system/backend/internal/realtime"
+	"github.com/jasperleoncito/pos-system/backend/internal/seed"
 	"github.com/jasperleoncito/pos-system/backend/internal/server"
 )
 
@@ -57,6 +58,21 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+
+	// SEED_ON_START makes first deploys hands-off: "admin" creates just
+	// the super admin (production default), "demo" loads the full demo
+	// tenant, empty/"off" disables. Idempotent, so reruns are no-ops;
+	// failures log but never block the API.
+	switch os.Getenv("SEED_ON_START") {
+	case "admin":
+		if err := seed.RunAdminOnly(ctx, db, logger); err != nil {
+			logger.Error("startup seed (admin) failed", "error", err)
+		}
+	case "demo":
+		if err := seed.Run(ctx, db, logger); err != nil {
+			logger.Error("startup seed (demo) failed", "error", err)
+		}
+	}
 
 	rdb := goredis.NewClient(&goredis.Options{
 		Addr:     cfg.Redis.Addr,

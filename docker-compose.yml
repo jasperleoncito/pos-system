@@ -85,6 +85,9 @@ services:
       REDIS_ADDR: redis:6379
       MINIO_ENDPOINT: minio:9000
       SMTP_HOST: ${SMTP_HOST:-mailpit}
+      # First-boot auto-seed: admin = super admin only (uses
+      # SEED_PASSWORD), demo = full demo tenant, off = nothing.
+      SEED_ON_START: ${SEED_ON_START:-admin}
     depends_on:
       postgres:
         condition: service_healthy
