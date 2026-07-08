@@ -38,6 +38,14 @@ test-integration:
 backup:
 	bash scripts/backup.sh
 
+# Production-built frontend inside the dev stack: instant page loads.
+frontend-fast:
+	docker compose -f docker-compose.yml -f docker-compose.fast.yml up -d --build frontend
+
+# Back to hot-reload frontend for frontend development.
+frontend-dev:
+	docker compose up -d --build frontend
+
 prod-up:
 	docker compose -f docker-compose.prod.yml up -d --build
 
