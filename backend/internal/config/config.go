@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -25,7 +26,8 @@ type AppConfig struct {
 
 type HTTPConfig struct {
 	Port         string
-	CORSOrigins  string
+	CORSOrigins  string // comma-separated browser origins allowed to call the API
+	AppURL       string // single public base URL used in emailed links
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 }
@@ -82,6 +84,7 @@ func Load() (*Config, error) {
 		HTTP: HTTPConfig{
 			Port:         getEnv("HTTP_PORT", "9137"),
 			CORSOrigins:  getEnv("CORS_ORIGINS", "http://localhost:7642"),
+			AppURL:       getEnv("APP_URL", ""),
 			ReadTimeout:  getDuration("HTTP_READ_TIMEOUT", 15*time.Second),
 			WriteTimeout: getDuration("HTTP_WRITE_TIMEOUT", 30*time.Second),
 		},
@@ -119,6 +122,12 @@ func Load() (*Config, error) {
 			Password: getEnv("SMTP_PASSWORD", ""),
 			From:     getEnv("SMTP_FROM", "noreply@pos.local"),
 		},
+	}
+
+	// Emailed links need exactly one public URL; default to the first
+	// allowed CORS origin when APP_URL isn't set explicitly.
+	if cfg.HTTP.AppURL == "" {
+		cfg.HTTP.AppURL = strings.TrimSpace(strings.Split(cfg.HTTP.CORSOrigins, ",")[0])
 	}
 
 	if err := cfg.validate(); err != nil {

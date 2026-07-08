@@ -76,7 +76,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	authSvc := service.NewAuthService(service.AuthServiceDeps{
 		Users: userRepo, Sessions: sessionRepo, Tenants: tenantRepo, Settings: settingsRepo,
 		Memberships: membershipRepo, Tokens: tokens, OTP: otpStore, Mailer: jobQueue,
-		Auditor: auditSvc, Logger: deps.Logger, AppBaseURL: deps.Config.HTTP.CORSOrigins,
+		Auditor: auditSvc, Logger: deps.Logger, AppBaseURL: deps.Config.HTTP.AppURL,
 	})
 	tenantSvc := service.NewTenantService(tenantRepo, settingsRepo, objectStore, auditSvc, deps.Logger)
 	productRepo := postgres.NewProductRepo(deps.DB)
