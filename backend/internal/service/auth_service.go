@@ -1,4 +1,4 @@
-package service
+﻿package service
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/rbac"
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/tenant"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/apperror"
+	"github.com/jasperleoncito/pos-system/backend/internal/pkg/mailer"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/password"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/token"
 )
@@ -49,6 +50,7 @@ type AuthService struct {
 	auditor     *AuditService
 	logger      *slog.Logger
 	appBaseURL  string
+	appName     string
 }
 
 type AuthServiceDeps struct {
@@ -63,13 +65,14 @@ type AuthServiceDeps struct {
 	Auditor     *AuditService
 	Logger      *slog.Logger
 	AppBaseURL  string
+	AppName     string
 }
 
 func NewAuthService(d AuthServiceDeps) *AuthService {
 	return &AuthService{
 		users: d.Users, sessions: d.Sessions, tenants: d.Tenants, settings: d.Settings,
 		memberships: d.Memberships, tokens: d.Tokens, otp: d.OTP, mailer: d.Mailer,
-		auditor: d.Auditor, logger: d.Logger, appBaseURL: d.AppBaseURL,
+		auditor: d.Auditor, logger: d.Logger, appBaseURL: d.AppBaseURL, appName: d.AppName,
 	}
 }
 
@@ -203,7 +206,7 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string, meta 
 func (s *AuthService) Logout(ctx context.Context, rawRefreshToken string, meta RequestMeta) error {
 	sess, err := s.sessions.GetByTokenHash(ctx, token.HashToken(rawRefreshToken))
 	if err != nil {
-		return nil // already gone — logout is idempotent
+		return nil // already gone â€” logout is idempotent
 	}
 	if err := s.sessions.Revoke(ctx, sess.ID); err != nil {
 		return err
@@ -259,9 +262,14 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) {
 		return
 	}
 	link := fmt.Sprintf("%s/reset-password?token=%s", s.appBaseURL, resetToken)
-	body := fmt.Sprintf(
-		`<p>Hi %s,</p><p>Click <a href="%s">here</a> to reset your password. The link expires in 30 minutes.</p>`,
-		user.FullName, link)
+	body := mailer.Render(mailer.Email{
+		AppName:    s.appName,
+		Title:      "Reset your password",
+		Intro:      fmt.Sprintf("Hi %s, we received a request to reset your password. The link below expires in 30 minutes.", user.FullName),
+		ButtonText: "Reset password",
+		ButtonURL:  link,
+		FooterNote: "If you didn't request this, you can safely ignore this email â€” your password will not change.",
+	})
 	if err := s.mailer.Send(user.Email, "Reset your password", body); err != nil {
 		s.logger.Error("failed to send reset email", "error", err)
 	}
@@ -409,9 +417,14 @@ func (s *AuthService) sendVerificationEmail(ctx context.Context, user *auth.User
 		return
 	}
 	link := fmt.Sprintf("%s/verify-email?token=%s", s.appBaseURL, verifyToken)
-	body := fmt.Sprintf(
-		`<p>Hi %s,</p><p>Welcome! Click <a href="%s">here</a> to verify your email address.</p>`,
-		user.FullName, link)
+	body := mailer.Render(mailer.Email{
+		AppName:    s.appName,
+		Title:      "Verify your email address",
+		Intro:      fmt.Sprintf("Hi %s, welcome! Confirm this email address to finish setting up your account.", user.FullName),
+		ButtonText: "Verify email",
+		ButtonURL:  link,
+		FooterNote: "If you didn't create this account, you can safely ignore this email.",
+	})
 	if err := s.mailer.Send(user.Email, "Verify your email", body); err != nil {
 		s.logger.Error("failed to send verification email", "error", err)
 	}

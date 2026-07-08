@@ -2,7 +2,20 @@
 
 Full-PRD build (`first-prompt.md`) in sequential phases. The system must stay runnable after every phase; each phase ends with browser/API verification and one conventional commit.
 
-**Status: ALL PHASES 0–14 DONE ✅ — the full PRD is built. Future work = new features/maintenance.**
+**Status: ALL PHASES 0–14 DONE ✅ — the full PRD is built. Continued development below.**
+
+## Continued development (post-PRD)
+
+### ✅ C1 — Legit-looking transactional email + sender name
+`SMTP_FROM_NAME` env (From: "Name <addr>"); shared branded HTML template (`pkg/mailer` Template) used by reset/verify + worker notification emails: app-name header bar, card layout, big button + copyable fallback link, "ignore this if you didn't request it" footer. Verified in Mailpit.
+
+### ✅ C2 — Hide subscription plans in super admin
+Plan selector removed from /admin/tenants UI (backend endpoint + tenants.plan column stay dormant for later billing work).
+
+### ⬜ Backlog (not scheduled)
+- Team management: owner invites/creates manager/cashier/kitchen/employee accounts under users:manage (invite email w/ set-password link).
+- Plan-based feature gating once billing matters (uses the dormant tenants.plan).
+- Super-admin: create business + owner from the console.
 
 ## Requirements beyond the PRD (user decisions)
 

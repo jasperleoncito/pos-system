@@ -1,4 +1,4 @@
-package server
+﻿package server
 
 import (
 	"log/slog"
@@ -76,7 +76,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	authSvc := service.NewAuthService(service.AuthServiceDeps{
 		Users: userRepo, Sessions: sessionRepo, Tenants: tenantRepo, Settings: settingsRepo,
 		Memberships: membershipRepo, Tokens: tokens, OTP: otpStore, Mailer: jobQueue,
-		Auditor: auditSvc, Logger: deps.Logger, AppBaseURL: deps.Config.HTTP.AppURL,
+		Auditor: auditSvc, Logger: deps.Logger, AppBaseURL: deps.Config.HTTP.AppURL, AppName: deps.Config.App.Name,
 	})
 	tenantSvc := service.NewTenantService(tenantRepo, settingsRepo, objectStore, auditSvc, deps.Logger)
 	productRepo := postgres.NewProductRepo(deps.DB)
@@ -161,7 +161,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	// ---- tenant branding routes ----
 	tenantGroup := api.Group("/tenant", middleware.Auth(tokens), middleware.RequireTenant())
 	{
-		// Readable by every member — branding must theme all roles' UI.
+		// Readable by every member â€” branding must theme all roles' UI.
 		tenantGroup.GET("/settings", tenantHandler.GetSettings)
 		tenantGroup.PUT("/settings",
 			middleware.RequirePermission(rbac.PermTenantSettingsWrite), tenantHandler.UpdateSettings)
@@ -291,7 +291,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		empGroup.GET("/employees/:id/schedule", empRead, employeeHandler.GetSchedule)
 		empGroup.PUT("/employees/:id/schedule", empWrite, employeeHandler.SaveSchedule)
 
-		// Self-service clock — every role has attendance:clock.
+		// Self-service clock â€” every role has attendance:clock.
 		clock := middleware.RequirePermission(rbac.PermAttendanceClock)
 		empGroup.GET("/attendance/me", clock, employeeHandler.MyClockStatus)
 		empGroup.POST("/attendance/clock-in", clock, employeeHandler.ClockIn)

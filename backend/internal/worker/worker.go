@@ -15,6 +15,7 @@ import (
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/notification"
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/rbac"
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/tenant"
+	"github.com/jasperleoncito/pos-system/backend/internal/pkg/mailer"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/queue"
 	"github.com/jasperleoncito/pos-system/backend/internal/repository/postgres"
 )
@@ -32,7 +33,18 @@ type Handlers struct {
 	Notifications notification.Repository
 	Analytics     analytics.Repository
 	Mailer        EmailSender
+	AppName       string
+	AppURL        string
 	Logger        *slog.Logger
+}
+
+// brandedEmail renders a notification in the shared legit-looking layout.
+func (h *Handlers) brandedEmail(title, intro, extraHTML string) string {
+	return mailer.Render(mailer.Email{
+		AppName: h.AppName, Title: title, Intro: intro, BodyHTML: extraHTML,
+		ButtonText: "Open " + h.AppName, ButtonURL: h.AppURL,
+		FooterNote: "You receive these alerts because you manage this business. Adjust them under Notifications in the app.",
+	})
 }
 
 // Mux registers every task handler.
@@ -118,7 +130,7 @@ func (h *Handlers) HandleLowStock(ctx context.Context, t *asynq.Task) error {
 		&notification.Notification{Type: notification.TypeLowStock, Title: title, Body: body, Link: "/inventory"},
 		func(pr *notification.Prefs) bool { return pr.EmailLowStock },
 		"Stock alert: "+title,
-		fmt.Sprintf("<h2>%s</h2><p>%s</p>", title, body))
+		h.brandedEmail(title, body, ""))
 }
 
 func (h *Handlers) HandleAttendanceAlert(ctx context.Context, t *asynq.Task) error {
@@ -132,7 +144,7 @@ func (h *Handlers) HandleAttendanceAlert(ctx context.Context, t *asynq.Task) err
 		&notification.Notification{Type: notification.TypeAttendance, Title: title, Body: body, Link: "/attendance"},
 		func(pr *notification.Prefs) bool { return pr.EmailAttendance },
 		"Attendance alert: "+title,
-		fmt.Sprintf("<h2>%s</h2><p>%s</p>", title, body))
+		h.brandedEmail(title, body, ""))
 }
 
 func (h *Handlers) HandleDailySummary(ctx context.Context, t *asynq.Task) error {
@@ -160,10 +172,13 @@ func (h *Handlers) HandleDailySummary(ctx context.Context, t *asynq.Task) error 
 	title := fmt.Sprintf("Daily summary — %s in sales", peso(summary.GrossSales))
 	body := fmt.Sprintf("%d orders · profit %s · expenses %s · refunds %s",
 		summary.Orders, peso(summary.Profit), peso(summary.Expenses), peso(summary.Refunds))
-	html := fmt.Sprintf(
-		"<h2>%s — %s</h2><ul><li>Sales: %s (%d orders)</li><li>Profit: %s</li><li>COGS: %s</li><li>Expenses: %s</li><li>Refunds: %s</li></ul>",
-		ten.Name, now.Format("Jan 2, 2006"), peso(summary.GrossSales), summary.Orders,
+	details := fmt.Sprintf(
+		"<ul style=\"margin:0;padding-left:20px;\"><li>Sales: %s (%d orders)</li><li>Profit: %s</li><li>COGS: %s</li><li>Expenses: %s</li><li>Refunds: %s</li></ul>",
+		peso(summary.GrossSales), summary.Orders,
 		peso(summary.Profit), peso(summary.COGS), peso(summary.Expenses), peso(summary.Refunds))
+	html := h.brandedEmail(
+		fmt.Sprintf("%s — %s", ten.Name, now.Format("Jan 2, 2006")),
+		"Here's how the day went:", details)
 
 	return h.notifyManagers(ctx, p.TenantID,
 		&notification.Notification{Type: notification.TypeDailySummary, Title: title, Body: body, Link: "/dashboard"},

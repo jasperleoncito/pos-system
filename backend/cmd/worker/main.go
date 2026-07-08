@@ -47,8 +47,10 @@ func main() {
 		Notifications: postgres.NewNotificationRepo(db),
 		Analytics:     postgres.NewAnalyticsRepo(db),
 		Mailer: mailer.New(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.User,
-			cfg.SMTP.Password, cfg.SMTP.From),
-		Logger: logger,
+			cfg.SMTP.Password, cfg.SMTP.From, cfg.SMTP.FromName),
+		AppName: cfg.App.Name,
+		AppURL:  cfg.HTTP.AppURL,
+		Logger:  logger,
 	}
 
 	redisOpt := asynq.RedisClientOpt{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password}

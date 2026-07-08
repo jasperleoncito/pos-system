@@ -8,21 +8,26 @@ import (
 )
 
 type Mailer struct {
-	host string
-	port string
-	user string
-	pass string
-	from string
+	host     string
+	port     string
+	user     string
+	pass     string
+	from     string
+	fromName string
 }
 
-func New(host, port, user, pass, from string) *Mailer {
-	return &Mailer{host: host, port: port, user: user, pass: pass, from: from}
+func New(host, port, user, pass, from, fromName string) *Mailer {
+	return &Mailer{host: host, port: port, user: user, pass: pass, from: from, fromName: fromName}
 }
 
 // Send delivers a simple HTML email.
 func (m *Mailer) Send(to, subject, htmlBody string) error {
+	fromHeader := m.from
+	if m.fromName != "" {
+		fromHeader = fmt.Sprintf("%q <%s>", m.fromName, m.from)
+	}
 	msg := strings.Join([]string{
-		"From: " + m.from,
+		"From: " + fromHeader,
 		"To: " + to,
 		"Subject: " + subject,
 		"MIME-Version: 1.0",

@@ -1,4 +1,4 @@
-package config
+﻿package config
 
 import (
 	"fmt"
@@ -71,6 +71,7 @@ type SMTPConfig struct {
 	User     string
 	Password string
 	From     string
+	FromName string
 }
 
 // Load reads configuration from environment variables and validates
@@ -121,6 +122,7 @@ func Load() (*Config, error) {
 			User:     getEnv("SMTP_USER", ""),
 			Password: getEnv("SMTP_PASSWORD", ""),
 			From:     getEnv("SMTP_FROM", "noreply@pos.local"),
+			FromName: getEnv("SMTP_FROM_NAME", "POS System"),
 		},
 	}
 

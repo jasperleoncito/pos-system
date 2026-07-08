@@ -3,16 +3,9 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
-import { useAdminStats, useAdminTenants, useSetTenantPlan, useSetTenantStatus } from "@/hooks/use-tenant";
+import { useAdminStats, useAdminTenants, useSetTenantStatus } from "@/hooks/use-tenant";
 import { formatCentavos } from "@/lib/currency";
 import type { Tenant } from "@/types/tenant";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,7 +24,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 function TenantRow({ tenant }: { tenant: Tenant }) {
   const setStatus = useSetTenantStatus();
-  const setPlan = useSetTenantPlan();
   const isActive = tenant.status === "active";
   const nextStatus = isActive ? "suspended" : "active";
 
@@ -52,21 +44,6 @@ function TenantRow({ tenant }: { tenant: Tenant }) {
           {new Date(tenant.created_at).toLocaleDateString()}
         </p>
       </div>
-
-      <Select
-        value={tenant.plan}
-        onValueChange={(plan) => setPlan.mutate({ tenantId: tenant.id, plan })}
-        disabled={setPlan.isPending}
-      >
-        <SelectTrigger className="w-28" aria-label={`Plan for ${tenant.name}`}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="free">Free</SelectItem>
-          <SelectItem value="standard">Standard</SelectItem>
-          <SelectItem value="premium">Premium</SelectItem>
-        </SelectContent>
-      </Select>
 
       <AlertDialog>
         <AlertDialogTrigger asChild>
