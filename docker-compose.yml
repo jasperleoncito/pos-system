@@ -1,3 +1,16 @@
+# The one and only stack file — works locally and on a VPS.
+#
+#   docker compose up -d --build          # start / update everything
+#   docker compose exec backend /app/seed # demo data (idempotent)
+#
+# Everything is production-built (fast, small, stable). After editing
+# code, rebuild just that service:
+#   docker compose up -d --build backend   (or frontend / worker)
+#
+# The nginx service is the app's single entrypoint on WEB_PORT (default
+# 7642): it routes /api -> Go, /storage -> MinIO, everything else ->
+# Next.js. On a VPS, point your reverse proxy (e.g. Nginx Proxy
+# Manager) at this port for the domain + TLS.
 name: pos-system
 
 services:
@@ -14,6 +27,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
     networks: [pos-network]
 
   redis:
@@ -26,6 +40,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
     networks: [pos-network]
 
   minio:
@@ -43,6 +58,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
     networks: [pos-network]
 
   minio-init:
@@ -62,17 +78,13 @@ services:
   backend:
     build:
       context: ./backend
-      target: dev
+      target: prod
     env_file: .env
     environment:
       DB_HOST: postgres
       REDIS_ADDR: redis:6379
       MINIO_ENDPOINT: minio:9000
-      SMTP_HOST: mailpit
-    volumes:
-      - ./backend:/app
-      - backend-go-cache:/go-cache
-      - backend-gomod-cache:/gomod-cache
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
     depends_on:
       postgres:
         condition: service_healthy
@@ -80,64 +92,60 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+    restart: unless-stopped
     networks: [pos-network]
 
   worker:
     build:
       context: ./backend
-      target: dev
-    command: ["go", "run", "./cmd/worker"]
+      target: prod
+    command: ["/app/worker"]
     env_file: .env
     environment:
       DB_HOST: postgres
       REDIS_ADDR: redis:6379
       MINIO_ENDPOINT: minio:9000
-      SMTP_HOST: mailpit
-    volumes:
-      - ./backend:/app
-      - backend-go-cache:/go-cache
-      - backend-gomod-cache:/gomod-cache
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
     networks: [pos-network]
 
-  # Production-built frontend by default: instant navigation. For
-  # frontend hot reload while editing UI code, use the override:
-  #   docker compose -f docker-compose.yml -f docker-compose.frontend-dev.yml up -d --build frontend
   frontend:
     build:
       context: ./frontend
       target: prod
     environment:
       NEXT_PUBLIC_API_URL: /api/v1
+    restart: unless-stopped
     networks: [pos-network]
 
   mailpit:
     image: axllent/mailpit:v1.21
     ports:
       - "9284:8025" # web UI
+    restart: unless-stopped
     networks: [pos-network]
 
   nginx:
     image: nginx:1.27-alpine
     ports:
-      - "7642:80"
+      - "${WEB_PORT:-7642}:80"
     volumes:
       - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - frontend
       - backend
+    restart: unless-stopped
     networks: [pos-network]
 
 volumes:
   postgres-data:
   redis-data:
   minio-data:
-  backend-go-cache:
-  backend-gomod-cache:
 
 networks:
   pos-network:

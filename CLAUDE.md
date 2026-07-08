@@ -26,9 +26,9 @@ Multi-tenant restaurant POS SaaS (PRD in `first-prompt.md`). Built in phases —
 
 ## Dev workflow
 
-- `docker compose up -d --build` — full stack (Docker Desktop must be running). Backend hot-reloads via air; the frontend runs the PRODUCTION build by default (instant navigation). Only while editing UI code, switch to hot reload with `make frontend-dev` (uses `docker-compose.frontend-dev.yml`), then back with `make frontend-fast`. Prod deploy = `docker-compose.prod.yml`: plain-HTTP nginx on WEB_PORT (default 7642) — an external reverse proxy (e.g. Nginx Proxy Manager) terminates TLS in front of it; the bundled nginx stays because it routes /api→Go, /storage→MinIO, /→Next on one origin with SSE buffering off.
+- **ONE compose file** (`docker-compose.yml`), used locally AND on the VPS. All services are production-built — there is NO hot reload; after editing code rebuild that service: `docker compose up -d --build backend` (or `frontend`/`worker`). nginx is the single entrypoint on WEB_PORT (default 7642): routes /api→Go, /storage→MinIO, /→Next with SSE buffering off; on the VPS an external reverse proxy (Nginx Proxy Manager) terminates TLS and forwards to that port.
 - App: http://localhost:7642 · Swagger: http://localhost:7642/api/v1/docs/index.html · Mailpit: http://localhost:9284 · MinIO console: http://localhost:9673
-- Seed (idempotent): `docker compose exec backend go run ./cmd/seed`
+- Seed (idempotent): `docker compose exec backend /app/seed`
 - Tests: `make test` (runs `go test -race` inside the container — the Windows host has no gcc, so run plain `go test ./...` when testing on the host).
 - Frontend checks on host: `npx tsc --noEmit` and `npm run lint` in `frontend/`.
 - `.env` is gitignored; `.env.example` documents everything.
