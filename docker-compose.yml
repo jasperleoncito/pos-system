@@ -104,17 +104,15 @@ services:
         condition: service_healthy
     networks: [pos-network]
 
+  # Production-built frontend by default: instant navigation. For
+  # frontend hot reload while editing UI code, use the override:
+  #   docker compose -f docker-compose.yml -f docker-compose.frontend-dev.yml up -d --build frontend
   frontend:
     build:
       context: ./frontend
-      target: dev
+      target: prod
     environment:
       NEXT_PUBLIC_API_URL: /api/v1
-      WATCHPACK_POLLING: "true"
-    volumes:
-      - ./frontend:/app
-      - frontend-node-modules:/app/node_modules
-      - frontend-next-cache:/app/.next
     networks: [pos-network]
 
   mailpit:
@@ -140,8 +138,6 @@ volumes:
   minio-data:
   backend-go-cache:
   backend-gomod-cache:
-  frontend-node-modules:
-  frontend-next-cache:
 
 networks:
   pos-network:

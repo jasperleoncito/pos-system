@@ -1,0 +1,20 @@
+# Frontend hot-reload override — ONLY needed while editing UI code.
+#   docker compose -f docker-compose.yml -f docker-compose.frontend-dev.yml up -d --build frontend
+# Switch back to the fast production frontend with:
+#   docker compose up -d --build frontend
+services:
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    environment:
+      NEXT_PUBLIC_API_URL: /api/v1
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules
+      - frontend-next-cache:/app/.next
+
+volumes:
+  frontend-node-modules:
+  frontend-next-cache:

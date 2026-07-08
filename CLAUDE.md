@@ -26,7 +26,7 @@ Multi-tenant restaurant POS SaaS (PRD in `first-prompt.md`). Built in phases —
 
 ## Dev workflow
 
-- `docker compose up -d --build` — full stack (Docker Desktop must be running). Hot reload works inside containers via polling (air for Go, WATCHPACK_POLLING for Next) because the repo lives under OneDrive.
+- `docker compose up -d --build` — full stack (Docker Desktop must be running). Backend hot-reloads via air; the frontend runs the PRODUCTION build by default (instant navigation). Only while editing UI code, switch to hot reload with `make frontend-dev` (uses `docker-compose.frontend-dev.yml`), then back with `make frontend-fast`. Prod deploy = `docker-compose.prod.yml`: plain-HTTP nginx on WEB_PORT (default 7642) — an external reverse proxy (e.g. Nginx Proxy Manager) terminates TLS in front of it; the bundled nginx stays because it routes /api→Go, /storage→MinIO, /→Next on one origin with SSE buffering off.
 - App: http://localhost:7642 · Swagger: http://localhost:7642/api/v1/docs/index.html · Mailpit: http://localhost:9284 · MinIO console: http://localhost:9673
 - Seed (idempotent): `docker compose exec backend go run ./cmd/seed`
 - Tests: `make test` (runs `go test -race` inside the container — the Windows host has no gcc, so run plain `go test ./...` when testing on the host).

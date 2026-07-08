@@ -38,13 +38,14 @@ test-integration:
 backup:
 	bash scripts/backup.sh
 
-# Production-built frontend inside the dev stack: instant page loads.
+# Default frontend is the fast production build. This restores it
+# after a frontend-dev session.
 frontend-fast:
-	docker compose -f docker-compose.yml -f docker-compose.fast.yml up -d --build frontend
-
-# Back to hot-reload frontend for frontend development.
-frontend-dev:
 	docker compose up -d --build frontend
+
+# Hot-reload frontend, only while editing UI code.
+frontend-dev:
+	docker compose -f docker-compose.yml -f docker-compose.frontend-dev.yml up -d --build frontend
 
 prod-up:
 	docker compose -f docker-compose.prod.yml up -d --build

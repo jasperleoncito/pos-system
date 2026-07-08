@@ -1,6 +1,7 @@
-# Production stack: built images (no bind mounts, no hot reload), TLS
-# nginx, healthchecks, restart policies. Configure secrets in .env and
-# put TLS certs in deploy/certs/ (fullchain.pem + privkey.pem).
+# Production stack: built images (no bind mounts, no hot reload),
+# healthchecks, restart policies. Serves plain HTTP on WEB_PORT — put
+# your own reverse proxy (e.g. Nginx Proxy Manager) in front for the
+# domain + TLS and point it at this port.
 #
 #   docker compose -f docker-compose.prod.yml up -d --build
 #   docker compose -f docker-compose.prod.yml exec backend /app/seed   # optional demo data
@@ -114,14 +115,15 @@ services:
     restart: unless-stopped
     networks: [pos-network]
 
+  # Internal router: one origin for /api (Go), /storage (MinIO), and the
+  # Next.js app, with SSE buffering off and the 12MB upload cap. Your
+  # external reverse proxy terminates TLS and forwards to WEB_PORT.
   nginx:
     image: nginx:1.27-alpine
     ports:
-      - "80:80"
-      - "443:443"
+      - "${WEB_PORT:-7642}:80"
     volumes:
-      - ./deploy/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      - ./deploy/certs:/etc/nginx/certs:ro
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - frontend
       - backend
