@@ -7,14 +7,25 @@ import { useAuth } from "@/hooks/use-auth";
 import { useDashboard, useOverview } from "@/hooks/use-analytics";
 import { formatCentavos } from "@/lib/currency";
 import { cn } from "@/lib/utils";
+import dynamic from "next/dynamic";
+
 import { StatCards } from "@/components/dashboard/stat-cards";
-import { HourlyChart, PaymentDonut } from "@/components/dashboard/charts";
 import { SalesHeatmap } from "@/components/dashboard/heatmap";
 import { TopList } from "@/components/dashboard/top-lists";
 import { ExpensesCard } from "@/components/dashboard/expenses-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+
+// Recharts is ~150kB — load it after the page shell paints.
+const HourlyChart = dynamic(
+  () => import("@/components/dashboard/charts").then((m) => m.HourlyChart),
+  { ssr: false, loading: () => <Skeleton className="h-80 w-full rounded-xl" /> },
+);
+const PaymentDonut = dynamic(
+  () => import("@/components/dashboard/charts").then((m) => m.PaymentDonut),
+  { ssr: false, loading: () => <Skeleton className="h-80 w-full rounded-xl" /> },
+);
 
 /** Local YYYY-MM-DD. */
 function isoDate(d: Date): string {
