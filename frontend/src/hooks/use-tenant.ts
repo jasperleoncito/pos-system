@@ -81,6 +81,39 @@ export function useAdminTenants(page: number) {
   });
 }
 
+export interface PlatformStats {
+  tenants_total: number;
+  tenants_active: number;
+  users_total: number;
+  orders_30d: number;
+  gmv_30d: number;
+}
+
+export function useAdminStats() {
+  return useQuery({
+    queryKey: ["admin", "stats"],
+    queryFn: async () => {
+      const res = await api.get<ApiEnvelope<PlatformStats>>("/admin/stats");
+      return res.data.data;
+    },
+  });
+}
+
+export function useSetTenantPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ tenantId, plan }: { tenantId: string; plan: string }) => {
+      const res = await api.patch<ApiEnvelope<Tenant>>(`/admin/tenants/${tenantId}/plan`, { plan });
+      return res.data.data;
+    },
+    onSuccess: (t) => {
+      toast.success(`${t.name} moved to the ${t.plan} plan`);
+      queryClient.invalidateQueries({ queryKey: ["admin", "tenants"] });
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error)),
+  });
+}
+
 export function useSetTenantStatus() {
   const queryClient = useQueryClient();
   return useMutation({

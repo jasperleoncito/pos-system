@@ -45,7 +45,11 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(middleware.Recovery(deps.Logger))
+	r.Use(middleware.SecurityHeaders(deps.Config.App.IsProduction()))
 	r.Use(middleware.CORS(deps.Config.HTTP.CORSOrigins))
+	// Global per-IP backstop; sensitive auth routes keep their own
+	// tighter limiter below.
+	r.Use(middleware.RateLimit(deps.Redis, "global", 300, time.Minute))
 
 	r.NoRoute(func(c *gin.Context) {
 		response.Error(c, 404, "route not found")
@@ -123,6 +127,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	reportHandler := v1.NewReportHandler(reportSvc)
 	notificationSvc := service.NewNotificationService(postgres.NewNotificationRepo(deps.DB))
 	notificationHandler := v1.NewNotificationHandler(notificationSvc)
+	auditHandler := v1.NewAuditHandler(auditSvc)
 
 	api := r.Group("/api/v1")
 	api.GET("/health", healthHandler.Health)
@@ -347,11 +352,17 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		notifGroup.PUT("/preferences", notificationHandler.UpdatePrefs)
 	}
 
+	// ---- audit trail (owner only via audit:read) ----
+	api.GET("/audit-logs", middleware.Auth(tokens), middleware.RequireTenant(),
+		middleware.RequirePermission(rbac.PermAuditRead), auditHandler.List)
+
 	// ---- super-admin routes ----
 	adminGroup := api.Group("/admin", middleware.Auth(tokens), middleware.RequireSuperAdmin())
 	{
 		adminGroup.GET("/tenants", tenantHandler.AdminListTenants)
 		adminGroup.PATCH("/tenants/:id/status", tenantHandler.AdminSetTenantStatus)
+		adminGroup.PATCH("/tenants/:id/plan", tenantHandler.AdminSetTenantPlan)
+		adminGroup.GET("/stats", tenantHandler.AdminStats)
 	}
 
 	return r

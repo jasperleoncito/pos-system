@@ -18,12 +18,12 @@ type TenantRepo struct {
 
 func NewTenantRepo(db *pgxpool.Pool) *TenantRepo { return &TenantRepo{db: db} }
 
-const tenantColumns = `id, name, slug, owner_user_id, status, currency, timezone, created_at, updated_at`
+const tenantColumns = `id, name, slug, owner_user_id, status, currency, timezone, plan, created_at, updated_at`
 
 func scanTenant(row pgx.Row) (*tenant.Tenant, error) {
 	var t tenant.Tenant
 	err := row.Scan(&t.ID, &t.Name, &t.Slug, &t.OwnerUserID, &t.Status, &t.Currency, &t.Timezone,
-		&t.CreatedAt, &t.UpdatedAt)
+		&t.Plan, &t.CreatedAt, &t.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.NotFound("tenant")
 	}
@@ -68,6 +68,48 @@ func (r *TenantRepo) Update(ctx context.Context, t *tenant.Tenant) error {
 		return fmt.Errorf("failed to update tenant: %w", err)
 	}
 	return nil
+}
+
+// SetPlan updates the subscription plan (platform admin only).
+func (r *TenantRepo) SetPlan(ctx context.Context, id, plan string) error {
+	tag, err := r.db.Exec(ctx, `
+		UPDATE tenants SET plan = $2, updated_at = now() WHERE id = $1 AND deleted_at IS NULL`, id, plan)
+	if err != nil {
+		return fmt.Errorf("failed to set plan: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperror.NotFound("tenant")
+	}
+	return nil
+}
+
+// PlatformStats aggregates cross-tenant counters for the admin console.
+func (r *TenantRepo) PlatformStats(ctx context.Context) (map[string]any, error) {
+	stats := map[string]any{}
+	var tenantsTotal, tenantsActive, users int64
+	if err := r.db.QueryRow(ctx, `
+		SELECT count(*), count(*) FILTER (WHERE status = 'active')
+		FROM tenants WHERE deleted_at IS NULL`).Scan(&tenantsTotal, &tenantsActive); err != nil {
+		return nil, fmt.Errorf("failed to count tenants: %w", err)
+	}
+	if err := r.db.QueryRow(ctx,
+		`SELECT count(*) FROM users WHERE deleted_at IS NULL`).Scan(&users); err != nil {
+		return nil, fmt.Errorf("failed to count users: %w", err)
+	}
+	var orders30, gmv30 int64
+	if err := r.db.QueryRow(ctx, `
+		SELECT count(*), COALESCE(SUM(total), 0)
+		FROM orders
+		WHERE status IN ('completed', 'partially_refunded', 'refunded') AND deleted_at IS NULL
+		  AND completed_at >= now() - interval '30 days'`).Scan(&orders30, &gmv30); err != nil {
+		return nil, fmt.Errorf("failed to sum platform orders: %w", err)
+	}
+	stats["tenants_total"] = tenantsTotal
+	stats["tenants_active"] = tenantsActive
+	stats["users_total"] = users
+	stats["orders_30d"] = orders30
+	stats["gmv_30d"] = gmv30
+	return stats, nil
 }
 
 func (r *TenantRepo) List(ctx context.Context, limit, offset int) ([]tenant.Tenant, int64, error) {

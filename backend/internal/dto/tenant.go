@@ -17,3 +17,7 @@ type UpdateTenantSettingsRequest struct {
 type SetTenantStatusRequest struct {
 	Status string `json:"status" binding:"required,oneof=active suspended"`
 }
+
+type SetTenantPlanRequest struct {
+	Plan string `json:"plan" binding:"required,oneof=free standard premium"`
+}

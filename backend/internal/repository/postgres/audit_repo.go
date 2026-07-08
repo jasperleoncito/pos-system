@@ -41,10 +41,12 @@ func (r *AuditRepo) List(ctx context.Context, tenantID string, limit, offset int
 	}
 
 	rows, err := r.db.Query(ctx, `
-		SELECT id, coalesce(tenant_id::text, ''), coalesce(user_id::text, ''), action, entity_type, entity_id,
-		       before, after, ip, user_agent, created_at
-		FROM audit_logs WHERE tenant_id = $1
-		ORDER BY created_at DESC LIMIT $2 OFFSET $3`, tenantID, limit, offset)
+		SELECT a.id, coalesce(a.tenant_id::text, ''), coalesce(a.user_id::text, ''),
+		       coalesce(u.full_name, ''), a.action, a.entity_type, a.entity_id,
+		       a.before, a.after, a.ip, a.user_agent, a.created_at
+		FROM audit_logs a LEFT JOIN users u ON u.id = a.user_id
+		WHERE a.tenant_id = $1
+		ORDER BY a.created_at DESC LIMIT $2 OFFSET $3`, tenantID, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list audit logs: %w", err)
 	}
@@ -53,7 +55,7 @@ func (r *AuditRepo) List(ctx context.Context, tenantID string, limit, offset int
 	var logs []audit.Log
 	for rows.Next() {
 		var l audit.Log
-		if err := rows.Scan(&l.ID, &l.TenantID, &l.UserID, &l.Action, &l.EntityType, &l.EntityID,
+		if err := rows.Scan(&l.ID, &l.TenantID, &l.UserID, &l.UserName, &l.Action, &l.EntityType, &l.EntityID,
 			&l.Before, &l.After, &l.IP, &l.UserAgent, &l.CreatedAt); err != nil {
 			return nil, 0, fmt.Errorf("failed to scan audit log: %w", err)
 		}

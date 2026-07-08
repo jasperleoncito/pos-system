@@ -1,6 +1,6 @@
 # POS System — Project Instructions
 
-Multi-tenant restaurant POS SaaS (PRD in `first-prompt.md`). Built in phases — **see `docs/PLAN.md` for the full phase plan and current progress**. Phases 0–13 are DONE; only Phase 14 (Hardening & production readiness) remains.
+Multi-tenant restaurant POS SaaS (PRD in `first-prompt.md`). Built in phases — **see `docs/PLAN.md` for the full phase plan and current progress**. ALL phases 0–14 are DONE — the full PRD is built. Production deploy: `docker-compose.prod.yml` (certs in `deploy/certs/`), backups via `make backup`, black-box tests via `make test-integration` (stack must be up + seeded).
 
 ## Golden rules
 

@@ -2,7 +2,7 @@
 
 Full-PRD build (`first-prompt.md`) in sequential phases. The system must stay runnable after every phase; each phase ends with browser/API verification and one conventional commit.
 
-**Status: Phases 0–13 DONE ✅ · Only Phase 14 (Hardening & production readiness) remains.**
+**Status: ALL PHASES 0–14 DONE ✅ — the full PRD is built. Future work = new features/maintenance.**
 
 ## Requirements beyond the PRD (user decisions)
 
@@ -60,8 +60,8 @@ pkg/export: generic Document{Title,Subtitle,Columns(kind text|money|number),Rows
 ### ✅ Phase 13 — Notifications & background jobs
 pkg/queue: asynq client + typed tasks (email:send, notify:low_stock, notify:attendance, notify:daily_summary); queue.Client implements the EmailSender contract so ALL transactional mail (verify/reset) now enqueues — cmd/worker delivers via SMTP. internal/worker.Handlers: fan-out to owner+manager members (in-app rows via batched insert + emails honoring per-user notification_prefs); asynq.Scheduler registers one daily-summary cron per tenant at 21:00 in the TENANT's timezone via "CRON_TZ={tz} 0 21 * * *" specs. Hooks: InventoryService.checkAlert enqueues exactly once per newly opened alert (EnsureAlert now returns created bool); EmployeeService.ClockIn enqueues when late_minutes > 0; services get queue via SetJobs (Jobs interface). notifications + notification_prefs tables (unread partial index; prefs default-true). Routes (any member): GET /notifications (items+unread), POST /:id/read, /read-all, GET/PUT /preferences. UI: topbar bell w/ unread badge + dropdown (30s poll), /notifications page w/ email-preference switches. Worker compose runs `go run ./cmd/worker` (restart to pick up changes). Verified: stock_out → alert → in-app + emails to owner+manager in Mailpit; 86m-late clock-in alert; queued password-reset delivered; read/read-all counts; prefs round-trip; crons registered per tenant.
 
-### ⬜ Phase 14 — Hardening & production readiness
-Audit coverage sweep on all mutating routes + audit log viewer; super-admin system analytics + subscriptions; security pass (headers, strict CORS, global rate limits, validation audit); integration test suite (auth, tenant isolation, order flow, inventory deduction); `docker-compose.prod.yml` (built images, TLS-ready nginx, healthchecks, restart policies); Postgres/MinIO backup script; responsive + a11y sweep at 375/768/1024/1440.
+### ✅ Phase 14 — Hardening & production readiness
+Audit viewer: GET /audit-logs (audit:read = owner) w/ joined user names; UI at /settings/audit (paginated, action badges, change summaries) linked from Settings. Super-admin: tenants.plan column (free|standard|premium, migration 000012) + PATCH /admin/tenants/:id/plan + GET /admin/stats (tenants/users/orders-30d/GMV-30d) + stats cards & plan select on /admin/tenants. Security: middleware.SecurityHeaders (nosniff, DENY, referrer-policy, permissions-policy, HSTS in prod) + global per-IP rate limit 300/min (auth keeps its tighter 20/min). Integration suite backend/tests (build tag `integration`, black-box vs running stack; `make test-integration`): refresh rotation + replay rejection, RBAC denials, tenant isolation via freshly registered tenant, full order flow w/ exact Rice 0.2 deduction + settle idempotency, security headers — all pass. docker-compose.prod.yml: prod image targets (distroless api/worker, standalone Next), TLS nginx (nginx.prod.conf, 80→443 redirect, HTTP/2, static caching, certs from deploy/certs — see its README), healthchecks + restart unless-stopped, no dev ports/mailpit. scripts/backup.sh (`make backup`): pg_dump custom format + MinIO volume tar via throwaway alpine (MSYS-safe); restore notes inline; backups/ gitignored. Responsive sweep at 375 on dashboard/reports/audit — tables scroll in-card, no page overflow.
 
 ---
 

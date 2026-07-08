@@ -14,6 +14,7 @@ type Tenant struct {
 	Status      string    `json:"status"`
 	Currency    string    `json:"currency"`
 	Timezone    string    `json:"timezone"`
+	Plan        string    `json:"plan"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -55,6 +56,9 @@ type Repository interface {
 	GetBySlug(ctx context.Context, slug string) (*Tenant, error)
 	Update(ctx context.Context, t *Tenant) error
 	List(ctx context.Context, limit, offset int) ([]Tenant, int64, error)
+	SetPlan(ctx context.Context, id, plan string) error
+	// PlatformStats aggregates cross-tenant counters for the admin console.
+	PlatformStats(ctx context.Context) (map[string]any, error)
 }
 
 type SettingsRepository interface {

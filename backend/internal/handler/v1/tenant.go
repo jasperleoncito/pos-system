@@ -162,3 +162,45 @@ func (h *TenantHandler) AdminSetTenantStatus(c *gin.Context) {
 	}
 	response.OK(c, "tenant status updated", t)
 }
+
+// AdminSetTenantPlan godoc
+//
+//	@Summary	Change a tenant's subscription plan (super admin)
+//	@Tags		admin
+//	@Security	BearerAuth
+//	@Accept		json
+//	@Produce	json
+//	@Param		id		path		string					true	"Tenant ID"
+//	@Param		payload	body		dto.SetTenantPlanRequest	true	"New plan"
+//	@Success	200		{object}	response.Envelope
+//	@Router		/admin/tenants/{id}/plan [patch]
+func (h *TenantHandler) AdminSetTenantPlan(c *gin.Context) {
+	var req dto.SetTenantPlanRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	t, err := h.tenants.SetTenantPlan(c.Request.Context(),
+		c.GetString(middleware.CtxUserID), c.Param("id"), req.Plan)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	response.OK(c, "tenant plan updated", t)
+}
+
+// AdminStats godoc
+//
+//	@Summary	Platform-wide counters (super admin)
+//	@Tags		admin
+//	@Security	BearerAuth
+//	@Produce	json
+//	@Success	200	{object}	response.Envelope
+//	@Router		/admin/stats [get]
+func (h *TenantHandler) AdminStats(c *gin.Context) {
+	stats, err := h.tenants.PlatformStats(c.Request.Context())
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	response.OK(c, "", stats)
+}

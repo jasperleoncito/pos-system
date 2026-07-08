@@ -10,6 +10,7 @@ type Log struct {
 	ID         string         `json:"id"`
 	TenantID   string         `json:"tenant_id,omitempty"`
 	UserID     string         `json:"user_id,omitempty"`
+	UserName   string         `json:"user_name,omitempty"` // joined for the viewer
 	Action     string         `json:"action"`
 	EntityType string         `json:"entity_type"`
 	EntityID   string         `json:"entity_id"`

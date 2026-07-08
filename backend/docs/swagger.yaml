@@ -653,6 +653,17 @@ definitions:
     - end_time
     - start_time
     type: object
+  dto.SetTenantPlanRequest:
+    properties:
+      plan:
+        enum:
+        - free
+        - standard
+        - premium
+        type: string
+    required:
+    - plan
+    type: object
   dto.SetTenantStatusRequest:
     properties:
       status:
@@ -842,6 +853,20 @@ info:
   title: POS System API
   version: "1.0"
 paths:
+  /admin/stats:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Platform-wide counters (super admin)
+      tags:
+      - admin
   /admin/tenants:
     get:
       parameters:
@@ -863,6 +888,34 @@ paths:
       security:
       - BearerAuth: []
       summary: List all tenants (super admin)
+      tags:
+      - admin
+  /admin/tenants/{id}/plan:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New plan
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SetTenantPlanRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Change a tenant's subscription plan (super admin)
       tags:
       - admin
   /admin/tenants/{id}/status:
@@ -1047,6 +1100,29 @@ paths:
       summary: Current clock state for the signed-in employee
       tags:
       - attendance
+  /audit-logs:
+    get:
+      parameters:
+      - description: Page (1-based)
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Tenant audit trail
+      tags:
+      - audit
   /auth/forgot-password:
     post:
       consumes:

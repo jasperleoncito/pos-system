@@ -29,6 +29,7 @@ export interface Tenant {
   status: "active" | "suspended";
   currency: string;
   timezone: string;
+  plan: "free" | "standard" | "premium";
   created_at: string;
   updated_at: string;
 }

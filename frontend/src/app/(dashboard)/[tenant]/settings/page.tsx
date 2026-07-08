@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ChevronRight, MonitorSmartphone, Palette } from "lucide-react";
+import { ChevronRight, MonitorSmartphone, Palette, ScrollText } from "lucide-react";
 
+import { useAuth } from "@/hooks/use-auth";
+import { can } from "@/lib/rbac";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function SettingsPage() {
   const params = useParams<{ tenant: string }>();
+  const { auth } = useAuth();
 
   const sections = [
     {
@@ -20,8 +23,16 @@ export default function SettingsPage() {
       href: `/${params.tenant}/settings/branding`,
       icon: Palette,
       title: "Branding",
-      description: "Logo, colors, and receipt details (coming in Phase 2)",
+      description: "Logo, colors, and receipt details",
     },
+    ...(can(auth?.activeTenant?.role, "audit:read")
+      ? [{
+          href: `/${params.tenant}/settings/audit`,
+          icon: ScrollText,
+          title: "Audit log",
+          description: "Every change made in this business, who made it, and when",
+        }]
+      : []),
   ];
 
   return (

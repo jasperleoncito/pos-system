@@ -3,8 +3,16 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
-import { useAdminTenants, useSetTenantStatus } from "@/hooks/use-tenant";
+import { useAdminStats, useAdminTenants, useSetTenantPlan, useSetTenantStatus } from "@/hooks/use-tenant";
+import { formatCentavos } from "@/lib/currency";
 import type { Tenant } from "@/types/tenant";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,11 +31,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 function TenantRow({ tenant }: { tenant: Tenant }) {
   const setStatus = useSetTenantStatus();
+  const setPlan = useSetTenantPlan();
   const isActive = tenant.status === "active";
   const nextStatus = isActive ? "suspended" : "active";
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border p-3">
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-sm font-medium">
           {tenant.name}
@@ -43,6 +52,21 @@ function TenantRow({ tenant }: { tenant: Tenant }) {
           {new Date(tenant.created_at).toLocaleDateString()}
         </p>
       </div>
+
+      <Select
+        value={tenant.plan}
+        onValueChange={(plan) => setPlan.mutate({ tenantId: tenant.id, plan })}
+        disabled={setPlan.isPending}
+      >
+        <SelectTrigger className="w-28" aria-label={`Plan for ${tenant.name}`}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="free">Free</SelectItem>
+          <SelectItem value="standard">Standard</SelectItem>
+          <SelectItem value="premium">Premium</SelectItem>
+        </SelectContent>
+      </Select>
 
       <AlertDialog>
         <AlertDialogTrigger asChild>
@@ -82,6 +106,7 @@ function TenantRow({ tenant }: { tenant: Tenant }) {
 export default function AdminTenantsPage() {
   const [page, setPage] = useState(1);
   const { data, isLoading } = useAdminTenants(page);
+  const { data: stats } = useAdminStats();
 
   const total = data?.meta?.total ?? 0;
   const limit = data?.meta?.limit ?? 20;
@@ -90,9 +115,26 @@ export default function AdminTenantsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Tenants</h1>
-        <p className="text-muted-foreground">All businesses on the platform</p>
+        <h1 className="text-2xl font-bold tracking-tight">Platform</h1>
+        <p className="text-muted-foreground">System analytics and every business on the platform</p>
       </header>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: "Businesses", value: stats ? `${stats.tenants_active}/${stats.tenants_total}` : "—", hint: "active / total" },
+          { label: "Users", value: stats ? String(stats.users_total) : "—", hint: "all accounts" },
+          { label: "Orders (30d)", value: stats ? String(stats.orders_30d) : "—", hint: "platform-wide" },
+          { label: "GMV (30d)", value: stats ? formatCentavos(stats.gmv_30d) : "—", hint: "gross sales" },
+        ].map((s) => (
+          <Card key={s.label} className="py-4">
+            <CardContent className="px-4">
+              <p className="text-xs text-muted-foreground">{s.label}</p>
+              <p className="text-xl font-bold tabular-nums tracking-tight">{s.value}</p>
+              <p className="text-xs text-muted-foreground">{s.hint}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
       <Card>
         <CardHeader>

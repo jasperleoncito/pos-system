@@ -18,3 +18,7 @@ frontend/next-env.d.ts
 .DS_Store
 Thumbs.db
 *.log
+
+# Ops artifacts
+backups/
+deploy/certs/*.pem

@@ -217,3 +217,27 @@ func (s *TenantService) SetTenantStatus(ctx context.Context, actorID, tenantID, 
 	})
 	return t, nil
 }
+
+// SetTenantPlan updates a tenant's subscription plan (platform admin).
+func (s *TenantService) SetTenantPlan(ctx context.Context, actorID, tenantID, plan string) (*tenant.Tenant, error) {
+	if plan != "free" && plan != "standard" && plan != "premium" {
+		return nil, apperror.Validation("plan must be free, standard, or premium")
+	}
+	if err := s.tenants.SetPlan(ctx, tenantID, plan); err != nil {
+		return nil, err
+	}
+	s.auditor.Record(audit.Log{
+		TenantID: tenantID, UserID: actorID, Action: "tenant.plan_changed",
+		EntityType: "tenant", EntityID: tenantID, After: map[string]any{"plan": plan},
+	})
+	return s.tenants.GetByID(ctx, tenantID)
+}
+
+// PlatformStats surfaces cross-tenant counters for the admin console.
+func (s *TenantService) PlatformStats(ctx context.Context) (map[string]any, error) {
+	stats, err := s.tenants.PlatformStats(ctx)
+	if err != nil {
+		return nil, apperror.Internal(err)
+	}
+	return stats, nil
+}
