@@ -114,6 +114,7 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-display);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -136,6 +137,42 @@
     select {
       min-height: 44px;
     }
+  }
+}
+
+/*
+ * Marketing / auth "appetizing warm" surfaces. Built from the theme's
+ * primary (red) and accent (amber) tokens so they follow tenant-neutral
+ * platform branding and adapt to light/dark.
+ */
+@layer components {
+  .bg-warm-hero {
+    background-image:
+      radial-gradient(120% 120% at 100% 0%, color-mix(in oklch, var(--accent) 55%, transparent) 0%, transparent 55%),
+      radial-gradient(120% 120% at 0% 100%, color-mix(in oklch, var(--primary) 65%, transparent) 0%, transparent 50%),
+      linear-gradient(135deg, var(--primary) 0%, color-mix(in oklch, var(--primary) 45%, var(--accent)) 100%);
+    color: var(--primary-foreground);
+  }
+  /* Soft warm glow for section backdrops on the page background. */
+  .bg-warm-soft {
+    background-image:
+      radial-gradient(80% 60% at 50% 0%, color-mix(in oklch, var(--accent) 16%, transparent) 0%, transparent 70%);
+  }
+  /* Subtle dotted texture overlay for hero panels. */
+  .warm-grain {
+    background-image: radial-gradient(color-mix(in oklch, var(--primary-foreground) 14%, transparent) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

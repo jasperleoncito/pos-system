@@ -1,45 +1,91 @@
-import type { ReactNode } from "react";
-import { ChefHat } from "lucide-react";
+"use client";
 
+import { useEffect, type ReactNode } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { motion } from "motion/react";
+import { BarChart3, ChefHat, Flame, Zap } from "lucide-react";
+
+import { useAuth } from "@/hooks/use-auth";
+
+const VALUE_PROPS = [
+  { icon: Zap, title: "Sell in seconds", body: "Tap-to-cart ordering on any phone, tablet, or PC." },
+  { icon: Flame, title: "Live kitchen tickets", body: "Orders stream straight to the kitchen — no paper." },
+  { icon: BarChart3, title: "Know your numbers", body: "Sales, profit, and stock, updated as you sell." },
+];
+
+/**
+ * Shared shell for login / register / forgot / reset. Two-column on
+ * lg+: a warm branded panel on the left, the form on the right. Already
+ * authenticated visitors are bounced to their dashboard.
+ */
 export default function AuthLayout({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const { auth, isReady } = useAuth();
+
+  useEffect(() => {
+    if (!isReady || !auth) return;
+    if (auth.user.is_super_admin) {
+      router.replace("/admin/tenants");
+      return;
+    }
+    const slug = auth.activeTenant?.tenant_slug;
+    if (slug) router.replace(`/${slug}/dashboard`);
+  }, [isReady, auth, router]);
+
   return (
-    <div className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
+    <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
       {/* Brand panel — hidden on small screens */}
-      <aside className="relative hidden overflow-hidden bg-primary text-primary-foreground lg:flex lg:flex-col lg:justify-between lg:p-12">
-        <div className="flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-xl bg-primary-foreground/10 backdrop-blur">
+      <aside className="bg-warm-hero relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-between lg:p-12">
+        <div className="warm-grain pointer-events-none absolute inset-0 opacity-60" aria-hidden />
+        <div
+          className="pointer-events-none absolute -right-28 -top-28 size-96 rounded-full bg-white/15 blur-3xl"
+          aria-hidden
+        />
+
+        <Link href="/" className="relative flex items-center gap-3">
+          <span className="flex size-11 items-center justify-center rounded-2xl bg-white/15 shadow-sm backdrop-blur">
             <ChefHat className="size-6" aria-hidden />
-          </div>
+          </span>
           <span className="text-lg font-semibold tracking-tight">POS System</span>
-        </div>
+        </Link>
 
-        <div className="space-y-4">
-          <h1 className="max-w-md text-4xl font-bold leading-tight tracking-tight">
-            Run every business you own from one place.
+        <motion.div
+          className="relative space-y-8"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+        >
+          <h1 className="max-w-md font-display text-4xl font-semibold leading-[1.1] tracking-tight text-balance xl:text-5xl">
+            Run your eatery, the modern way.
           </h1>
-          <p className="max-w-md text-primary-foreground/75">
-            Point of sale, inventory, kitchen display, attendance, and analytics —
-            isolated per business, branded your way.
+          <p className="max-w-md text-primary-foreground/80">
+            Point of sale, kitchen display, inventory, attendance, and analytics —
+            one account for every business you own, branded your way.
           </p>
-        </div>
 
-        <p className="text-sm text-primary-foreground/60">
-          Multi-tenant restaurant management platform
+          <ul className="space-y-4">
+            {VALUE_PROPS.map((p) => (
+              <li key={p.title} className="flex items-start gap-3">
+                <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
+                  <p.icon className="size-4" aria-hidden />
+                </span>
+                <div>
+                  <p className="font-medium">{p.title}</p>
+                  <p className="text-sm text-primary-foreground/70">{p.body}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </motion.div>
+
+        <p className="relative text-sm text-primary-foreground/60">
+          Built for Filipino restaurants — ₱, GCash &amp; Maya, VAT-ready receipts.
         </p>
-
-        {/* Decorative layers */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-24 -top-24 size-96 rounded-full bg-primary-foreground/10 blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-32 -left-16 size-96 rounded-full bg-black/10 blur-3xl"
-        />
       </aside>
 
       <main className="flex items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-sm">{children}</div>
+        <div className="w-full max-w-md">{children}</div>
       </main>
     </div>
   );
