@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1080px; }
+  body {
+    font-family: "Inter", system-ui, sans-serif; color: #2A1410;
+    background: radial-gradient(90% 70% at 100% 0%, rgba(245,158,11,.16) 0%, transparent 60%), #FDF8F1;
+    position: relative; overflow: hidden;
+  }
+  .frame { position: relative; height: 100%; padding: 76px 80px; display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .logo { width: 60px; height: 60px; border-radius: 18px; background: #DC2626;
+    display: flex; align-items: center; justify-content: center; }
+  .logo svg { width: 34px; height: 34px; stroke: #fff; }
+  .wordmark { font-size: 28px; font-weight: 600; letter-spacing: -.01em; }
+  .kicker { display: inline-flex; align-items: center; gap: 10px; align-self: flex-start; margin-top: 54px;
+    background: #FCE9D6; color: #B45309; padding: 10px 20px; border-radius: 999px; font-size: 22px; font-weight: 600; }
+  h1 { font-family: "Fraunces", serif; font-weight: 600; font-size: 96px; line-height: 1;
+    letter-spacing: -.02em; margin-top: 26px; }
+  h1 span { color: #DC2626; }
+  .sub { font-size: 32px; line-height: 1.4; color: #7A6A62; margin-top: 26px; max-width: 620px; }
+  .stage { flex: 1; display: flex; align-items: flex-end; }
+  /* POS mockup */
+  .pos { width: 100%; background: #fff; border: 1px solid #EFE3D6; border-radius: 26px;
+    box-shadow: 0 30px 60px -30px rgba(120,40,10,.35); padding: 26px; display: grid;
+    grid-template-columns: 1.5fr 1fr; gap: 22px; }
+  .chips { display: flex; gap: 12px; margin-bottom: 18px; }
+  .chip { padding: 10px 20px; border-radius: 999px; font-size: 20px; font-weight: 600; border: 1px solid #EFE3D6; color: #7A6A62; }
+  .chip.on { background: #DC2626; color: #fff; border-color: #DC2626; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .tile { border: 1px solid #EFE3D6; border-radius: 18px; padding: 14px; }
+  .thumb { aspect-ratio: 1; border-radius: 12px; margin-bottom: 12px; }
+  .tname { font-size: 20px; font-weight: 600; }
+  .tprice { font-size: 20px; font-weight: 700; color: #DC2626; }
+  .cart { border: 1px solid #EFE3D6; border-radius: 18px; padding: 20px; display: flex; flex-direction: column; }
+  .ct { font-size: 20px; font-weight: 700; margin-bottom: 14px; }
+  .row { display: flex; justify-content: space-between; font-size: 19px; margin-bottom: 10px; color: #4a3a33; }
+  .total { margin-top: auto; border-top: 1px solid #EFE3D6; padding-top: 14px; display: flex; justify-content: space-between; font-size: 26px; font-weight: 800; }
+  .total .amt { color: #DC2626; }
+  .pay { margin-top: 14px; background: #DC2626; color: #fff; text-align: center; padding: 14px; border-radius: 12px; font-size: 20px; font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"/><line x1="6" y1="17" x2="18" y2="17"/></svg></div>
+      <span class="wordmark">POS System</span>
+    </div>
+    <span class="kicker">① Point of Sale</span>
+    <h1>Ring up a sale<br>in <span>seconds.</span></h1>
+    <p class="sub">Tap to add items, variants, and add-ons. Hold orders, split bills, take any payment.</p>
+    <div class="stage">
+      <div class="pos">
+        <div>
+          <div class="chips"><span class="chip on">All</span><span class="chip">Rice Meals</span><span class="chip">Silog</span></div>
+          <div class="grid">
+            <div class="tile"><div class="thumb" style="background:#FBD7D3"></div><div class="tname">Pork Sisig</div><div class="tprice">₱120</div></div>
+            <div class="tile"><div class="thumb" style="background:#FBEACB"></div><div class="tname">Adobo</div><div class="tprice">₱110</div></div>
+            <div class="tile"><div class="thumb" style="background:#D8EEDD"></div><div class="tname">Tapa</div><div class="tprice">₱135</div></div>
+          </div>
+        </div>
+        <div class="cart">
+          <div class="ct">Current order</div>
+          <div class="row"><span>2× Pork Sisig</span><span>₱240</span></div>
+          <div class="row"><span>2× Garlic Rice</span><span>₱60</span></div>
+          <div class="row"><span>1× Iced Tea</span><span>₱45</span></div>
+          <div class="total"><span>Total</span><span class="amt">₱345</span></div>
+          <div class="pay">Charge ₱345</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>POS System — Product Walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,500;9..144,0,600;9..144,0,700;9..144,1,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --red:#DC2626; --red-deep:#B91C1C; --orange:#EA580C; --amber:#D97706; --amber-l:#F59E0B;
+    --cream:#FDF8F1; --ink:#2A1410; --muted:#7A6A62; --line:#EFE3D6;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:#1a0d0a;font-family:"Inter",system-ui,sans-serif;overflow:hidden}
+  /* 16:9 stage, scaled to fit viewport */
+  .stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  .deck{position:relative;width:1920px;height:1080px;transform-origin:center;background:var(--cream);
+    overflow:hidden;border-radius:2px}
+  .slide{position:absolute;inset:0;padding:110px 130px;display:none;flex-direction:column;opacity:0}
+  .slide.active{display:flex;opacity:1}
+  .slide.active .anim{animation:rise .6s cubic-bezier(.16,1,.3,1) both}
+  .slide.active .anim:nth-child(2){animation-delay:.08s}
+  .slide.active .anim:nth-child(3){animation-delay:.16s}
+  .slide.active .anim:nth-child(4){animation-delay:.24s}
+  .slide.active .anim:nth-child(5){animation-delay:.32s}
+  @keyframes rise{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+  @keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+
+  /* warm gradient slides */
+  .warm{color:#fff;background:
+    radial-gradient(120% 120% at 100% 0%,rgba(245,158,11,.5),transparent 55%),
+    radial-gradient(120% 120% at 0% 100%,rgba(185,28,28,.6),transparent 50%),
+    linear-gradient(135deg,var(--red) 0%,var(--orange) 60%,var(--amber) 100%)}
+  .warm .muted{color:rgba(255,255,255,.85)}
+  .grain{position:absolute;inset:0;opacity:.5;pointer-events:none;
+    background-image:radial-gradient(rgba(255,255,255,.13) 1.6px,transparent 1.6px);background-size:34px 34px}
+
+  .brand{display:flex;align-items:center;gap:18px}
+  .logo{width:74px;height:74px;border-radius:22px;display:flex;align-items:center;justify-content:center}
+  .logo.red{background:var(--red)} .logo.glass{background:rgba(255,255,255,.16);backdrop-filter:blur(6px)}
+  .logo svg{width:42px;height:42px;stroke:#fff}
+  .wm{font-size:34px;font-weight:600;letter-spacing:-.01em}
+
+  .kicker{align-self:flex-start;display:inline-flex;align-items:center;gap:12px;font-size:26px;font-weight:600;
+    padding:12px 24px;border-radius:999px}
+  .kicker.red{background:#FCE9D6;color:#B45309} .kicker.glass{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.24)}
+  .kdot{width:12px;height:12px;border-radius:999px;background:currentColor}
+
+  h1{font-family:"Fraunces",serif;font-weight:600;letter-spacing:-.02em;line-height:1}
+  .display{font-size:150px;line-height:.98}
+  .display em{font-style:italic}
+  .title{font-size:96px}
+  .title .accent{color:var(--red)}
+  .warm .title .accent{color:#fff;text-decoration:underline;text-decoration-color:rgba(255,255,255,.5);text-underline-offset:10px}
+  .lede{font-size:40px;line-height:1.4;max-width:1050px}
+  .num{font-family:"Fraunces",serif;font-size:40px;opacity:.6}
+
+  .head{display:flex;align-items:center;justify-content:space-between}
+  .body{flex:1;display:flex;align-items:center;gap:70px;margin-top:40px}
+  .copy{flex:1;display:flex;flex-direction:column;gap:26px}
+  .visual{flex:1.05}
+  ul.checks{list-style:none;display:flex;flex-direction:column;gap:18px;margin-top:6px}
+  ul.checks li{display:flex;align-items:center;gap:16px;font-size:32px}
+  .tick{width:40px;height:40px;border-radius:12px;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px}
+  .warm .tick{background:rgba(255,255,255,.2)}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:28px;box-shadow:0 40px 80px -40px rgba(120,40,10,.4);padding:34px}
+  .warm .card{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.2);color:#fff;backdrop-filter:blur(4px)}
+
+  /* POS mock */
+  .pos{display:grid;grid-template-columns:1.5fr 1fr;gap:26px}
+  .chips{display:flex;gap:14px;margin-bottom:20px}
+  .chip{padding:12px 24px;border-radius:999px;font-size:24px;font-weight:600;border:1px solid var(--line);color:var(--muted)}
+  .chip.on{background:var(--red);color:#fff;border-color:var(--red)}
+  .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .tile{border:1px solid var(--line);border-radius:20px;padding:16px}
+  .thumb{aspect-ratio:1;border-radius:14px;margin-bottom:14px}
+  .tn{font-size:24px;font-weight:600} .tp{font-size:24px;font-weight:800;color:var(--red)}
+  .cart{border:1px solid var(--line);border-radius:20px;padding:24px;display:flex;flex-direction:column}
+  .ct{font-size:24px;font-weight:800;margin-bottom:16px}
+  .crow{display:flex;justify-content:space-between;font-size:23px;margin-bottom:12px;color:#4a3a33}
+  .ctot{margin-top:auto;border-top:1px solid var(--line);padding-top:16px;display:flex;justify-content:space-between;font-size:30px;font-weight:800}
+  .ctot .amt{color:var(--red)}
+  .charge{margin-top:16px;background:var(--red);color:#fff;text-align:center;padding:18px;border-radius:14px;font-size:24px;font-weight:700}
+
+  /* generic feature grid */
+  .fgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:22px}
+  .fitem{border:1px solid var(--line);border-radius:20px;padding:26px 28px}
+  .warm .fitem{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.1)}
+  .fi-ic{width:60px;height:60px;border-radius:16px;background:rgba(220,38,38,.1);color:var(--red);display:flex;align-items:center;justify-content:center;font-size:30px;margin-bottom:16px}
+  .warm .fi-ic{background:rgba(255,255,255,.18);color:#fff}
+  .fi-t{font-size:30px;font-weight:700} .fi-b{font-size:24px;color:var(--muted);margin-top:8px} .warm .fi-b{color:rgba(255,255,255,.8)}
+
+  /* steps */
+  .steps{display:flex;gap:24px;width:100%}
+  .step{flex:1;background:#fff;border:1px solid var(--line);border-radius:24px;padding:34px;box-shadow:0 30px 60px -40px rgba(120,40,10,.3)}
+  .snum{font-family:"Fraunces",serif;font-size:64px;font-weight:700;color:var(--red);line-height:1}
+  .st{font-size:32px;font-weight:700;margin-top:12px} .sb{font-size:24px;color:var(--muted);margin-top:10px}
+
+  /* kitchen tickets */
+  .kcols{display:flex;gap:20px;width:100%}
+  .kcol{flex:1} .kh{font-size:24px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px}
+  .warm .kh{color:rgba(255,255,255,.7)}
+  .ticket{background:#fff;border:1px solid var(--line);border-radius:20px;padding:22px;margin-bottom:16px}
+  .th2{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .tno{font-size:28px;font-weight:800} .badge{font-size:20px;font-weight:700;padding:5px 14px;border-radius:999px}
+  .b-amber{background:#FEF3C7;color:#B45309}.b-red{background:#FEE2E2;color:#B91C1C}.b-green{background:#DCFCE7;color:#15803D}
+  .kli{font-size:23px;color:#4a3a33;padding:4px 0}
+
+  /* stat panel */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:26px}
+  .stat{border-radius:20px;padding:26px;background:rgba(255,255,255,.12)}
+  .sl{font-size:24px;color:rgba(255,255,255,.75)} .sv{font-size:52px;font-weight:800;margin-top:6px}
+  .up{font-size:23px;color:#BBF7D0;font-weight:700}
+  .bars{display:flex;align-items:flex-end;gap:18px;height:200px}
+  .bar{flex:1;background:rgba(255,255,255,.28);border-radius:12px 12px 0 0}
+
+  /* pricing */
+  .price-wrap{display:flex;gap:30px;justify-content:center;width:100%;max-width:1100px;margin:0 auto}
+  .pcard{flex:1;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:26px;padding:40px;text-align:left}
+  .pcard.hi{background:#fff;color:var(--ink)}
+  .pn{font-size:28px;font-weight:600;opacity:.85} .pcard.hi .pn{color:var(--muted)}
+  .pa{font-family:"Fraunces",serif;font-size:88px;font-weight:700;letter-spacing:-.02em;margin-top:8px}
+  .pper{font-size:30px;font-weight:600;opacity:.7}
+  .ptag{display:inline-block;background:var(--red);color:#fff;font-size:22px;font-weight:700;padding:8px 18px;border-radius:999px;margin-bottom:16px}
+
+  .center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:30px}
+  .cta{background:#fff;color:var(--red);font-size:38px;font-weight:800;padding:26px 60px;border-radius:999px;box-shadow:0 30px 60px -24px rgba(0,0,0,.4)}
+  .fb{display:flex;align-items:center;gap:16px;font-size:32px;font-weight:600}
+  .fb svg{width:36px;height:36px;fill:#fff}
+
+  /* chrome: progress + controls */
+  .progress{position:absolute;top:0;left:0;right:0;height:8px;background:rgba(0,0,0,.08);z-index:10}
+  .warm ~ .progress .fillbar,.pbar{height:100%;background:var(--red)}
+  .pbar{width:0;transition:width .1s linear;background:linear-gradient(90deg,var(--amber-l),var(--red))}
+  .counter{position:absolute;bottom:34px;right:44px;font-size:24px;font-weight:600;opacity:.55;z-index:10}
+  .warm .counter{color:#fff}
+  .hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.5);font-size:15px;z-index:20;
+    background:rgba(0,0,0,.4);padding:8px 16px;border-radius:999px;backdrop-filter:blur(6px)}
+  .pausepill{position:absolute;top:28px;right:44px;z-index:10;font-size:22px;font-weight:700;color:#fff;
+    background:rgba(0,0,0,.25);padding:8px 18px;border-radius:999px;display:none}
+  .paused .pausepill{display:block}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="deck" id="deck">
+    <div class="pbar" id="pbar" style="position:absolute;top:0;left:0;height:8px;z-index:10"></div>
+    <div class="pausepill">Paused</div>
+
+    <!-- 1 · Intro -->
+    <section class="slide warm">
+      <div class="grain"></div>
+      <div class="head anim"><div class="brand"><div class="logo glass"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"/><line x1="6" y1="17" x2="18" y2="17"/></svg></div><span class="wm">POS System</span></div></div>
+      <div class="center">
+        <div class="kicker glass anim"><span class="kdot"></span> Product walkthrough</div>
+        <h1 class="display anim">Run your eatery,<br><em>the modern way.</em></h1>
+        <p class="lede muted anim">Everything your restaurant needs — point of sale, kitchen, inventory, staff, loyalty, and analytics — in one app.</p>
+      </div>
+      <div class="counter">01</div>
+    </section>
+
+    <!-- 2 · Overview -->
+    <section class="slide">
+      <div class="head anim"><div class="brand"><div class="logo red"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"/><line x1="6" y1="17" x2="18" y2="17"/></svg></div><span class="wm" style="color:var(--ink)">POS System</span></div><span class="num">what it does</span></div>
+      <div class="body">
+        <div class="copy">
+          <div class="kicker red anim"><span class="kdot"></span> One app, the whole business</div>
+          <h1 class="title anim" style="color:var(--ink)">Replace the<br><span class="accent">stitched-together</span> apps.</h1>
+          <p class="lede anim" style="color:var(--muted)">No separate POS, spreadsheet, and notebook. It all lives in one place, on any phone, tablet, or PC.</p>
+        </div>
+        <div class="visual anim">
+          <div class="fgrid">
+            <div class="fitem"><div class="fi-ic">🧾</div><div class="fi-t">Point of Sale</div><div class="fi-b">Orders, payments, receipts</div></div>
+            <div class="fitem"><div class="fi-ic">🔥</div><div class="fi-t">Kitchen Display</div><div class="fi-b">Live tickets, no paper</div></div>
+            <div class="fitem"><div class="fi-ic">📦</div><div class="fi-t">Inventory</div><div class="fi-b">Recipes &amp; stock alerts</div></div>
+            <div class="fitem"><div class="fi-ic">📈</div><div class="fi-t">Analytics</div><div class="fi-b">Sales &amp; profit, live</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="counter" style="color:var(--ink)">02</div>
+    </section>
+
+    <!-- 3 · Getting started -->
+    <section class="slide">
+      <div class="head anim"><div class="kicker red"><span class="kdot"></span> Getting started</div><span class="num">3 steps</span></div>
+      <h1 class="title anim" style="color:var(--ink);margin-top:24px">Up and running in minutes.</h1>
+      <div class="body" style="align-items:stretch">
+        <div class="steps anim">
+          <div class="step"><div class="snum">1</div><div class="st">Create your account</div><div class="sb">Sign up, name your business, and pick a monthly or yearly plan.</div></div>
+          <div class="step"><div class="snum">2</div><div class="st">Activate &amp; add your menu</div><div class="sb">Pay securely online, then add categories, products, and prices.</div></div>
+          <div class="step"><div class="snum">3</div><div class="st">Start selling</div><div class="sb">Open the POS on any device and take your first order.</div></div>
+        </div>
+      </div>
+      <div class="counter" style="color:var(--ink)">03</div>
+    </section>
+
+    <!-- 4 · POS -->
+    <section class="slide">
+      <div class="head anim"><div class="kicker red"><span class="kdot"></span> ① Point of Sale</div><span class="num">take an order</span></div>
+      <div class="body">
+        <div class="copy">
+          <h1 class="title anim" style="color:var(--ink)">Ring up a sale<br>in <span class="accent">seconds.</span></h1>
+          <ul class="checks anim">
+            <li><span class="tick">✓</span> Tap to add items, variants &amp; add-ons</li>
+            <li><span class="tick">✓</span> Hold orders during the rush</li>
+            <li><span class="tick">✓</span> Split the bill any way</li>
+          </ul>
+        </div>
+        <div class="visual anim">
+          <div class="card pos">
+            <div>
+              <div class="chips"><span class="chip on">All</span><span class="chip">Rice Meals</span><span class="chip">Silog</span></div>
+              <div class="pgrid">
+                <div class="tile"><div class="thumb" style="background:#FBD7D3"></div><div class="tn">Pork Sisig</div><div class="tp">₱120</div></div>
+                <div class="tile"><div class="thumb" style="background:#FBEACB"></div><div class="tn">Adobo</div><div class="tp">₱110</div></div>
+                <div class="tile"><div class="thumb" style="background:#D8EEDD"></div><div class="tn">Tapa</div><div class="tp">₱135</div></div>
+              </div>
+            </div>
+            <div class="cart">
+              <div class="ct">Current order</div>
+              <div class="crow"><span>2× Pork Sisig</span><span>₱240</span></div>
+              <div class="crow"><span>2× Garlic Rice</span><span>₱60</span></div>
+              <div class="crow"><span>1× Iced Tea</span><span>₱45</span></div>
+              <div class="ctot"><span>Total</span><span class="amt">₱345</span></div>
+              <div class="charge">Charge ₱345</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="counter" style="color:var(--ink)">04</div>
+    </section>
+
+    <!-- 5 · Payments -->
+    <section class="slide warm">
+      <div class="grain"></div>
+      <div class="head anim"><div class="kicker glass"><span class="kdot"></span> ② Payments &amp; Receipts</div><span class="num">how they pay</span></div>
+      <div class="body">
+        <div class="copy">
+          <h1 class="title anim">Any payment,<br><span class="accent">one order.</span></h1>
+          <ul class="checks anim">
+            <li><span class="tick">✓</span> Cash, GCash, Maya, card</li>
+            <li><span class="tick">✓</span> Mixed &amp; split payments</li>
+            <li><span class="tick">✓</span> 80mm VAT receipts, refunds &amp; voids</li>
+          </ul>
+        </div>
+        <div class="visual anim">
+          <div class="card">
+            <div class="fgrid">
+              <div class="fitem"><div class="fi-ic">💵</div><div class="fi-t">Cash</div></div>
+              <div class="fitem"><div class="fi-ic">📱</div><div class="fi-t">GCash</div></div>
+              <div class="fitem"><div class="fi-ic">🅼</div><div class="fi-t">Maya</div></div>
+              <div class="fitem"><div class="fi-ic">💳</div><div class="fi-t">Card</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="counter">05</div>
+    </section>
+
+    <!-- 6 · Kitchen -->
+    <section class="slide">
+      <div class="head anim"><div class="kicker red"><span class="kdot"></span> ③ Kitchen Display</div><span class="num">to the kusina</span></div>
+      <h1 class="title anim" style="color:var(--ink);margin-top:20px">Orders fly straight to the <span class="accent">kitchen.</span></h1>
+      <div class="body">
+        <div class="kcols anim">
+          <div class="kcol"><div class="kh">New</div><div class="ticket"><div class="th2"><span class="tno">#118</span><span class="badge b-amber">2m</span></div><div class="kli">2× Pork Sisig</div><div class="kli">2× Garlic Rice</div></div></div>
+          <div class="kcol"><div class="kh">Preparing</div><div class="ticket"><div class="th2"><span class="tno">#117</span><span class="badge b-red">11m</span></div><div class="kli">1× Beef Tapa</div><div class="kli">1× Egg</div></div></div>
+          <div class="kcol"><div class="kh">Ready</div><div class="ticket"><div class="th2"><span class="tno">#116</span><span class="badge b-green">✓ done</span></div><div class="kli">3× Chicken Adobo</div><div class="kli">3× Rice</div></div></div>
+        </div>
+      </div>
+      <div class="counter" style="color:var(--ink)">06</div>
+    </section>
+
+    <!-- 7 · Inventory -->
+    <section class="slide">
+      <div class="head anim"><div class="kicker red"><span class="kdot"></span> ④ Inventory &amp; Recipes</div><span class="num">stock control</span></div>
+      <div class="body">
+        <div class="copy">
+          <h1 class="title anim" style="color:var(--ink)">Your stock<br>counts <span class="accent">itself.</span></h1>
+          <ul class="checks anim">
+            <li><span class="tick">✓</span> Sales deduct ingredients by recipe</li>
+            <li><span class="tick">✓</span> Low-stock &amp; out-of-stock alerts</li>
+            <li><span class="tick">✓</span> Purchase orders &amp; suppliers</li>
+          </ul>
+        </div>
+        <div class="visual anim">
+          <div class="card">
+            <div style="display:flex;flex-direction:column;gap:22px;font-size:26px">
+              <div style="display:grid;grid-template-columns:200px 1fr 130px;align-items:center;gap:20px"><b>Rice</b><div style="height:16px;border-radius:99px;background:#F1E6D9;overflow:hidden"><div style="width:78%;height:100%;background:#22C55E"></div></div><span style="justify-self:end;background:#DCFCE7;color:#15803D;font-size:21px;font-weight:700;padding:6px 16px;border-radius:99px">In stock</span></div>
+              <div style="display:grid;grid-template-columns:200px 1fr 130px;align-items:center;gap:20px"><b>Pork</b><div style="height:16px;border-radius:99px;background:#F1E6D9;overflow:hidden"><div style="width:24%;height:100%;background:#F59E0B"></div></div><span style="justify-self:end;background:#FEF3C7;color:#B45309;font-size:21px;font-weight:700;padding:6px 16px;border-radius:99px">Low</span></div>
+              <div style="display:grid;grid-template-columns:200px 1fr 130px;align-items:center;gap:20px"><b>Oil</b><div style="height:16px;border-radius:99px;background:#F1E6D9;overflow:hidden"><div style="width:6%;height:100%;background:#EF4444"></div></div><span style="justify-self:end;background:#FEE2E2;color:#B91C1C;font-size:21px;font-weight:700;padding:6px 16px;border-radius:99px">Reorder</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="counter" style="color:var(--ink)">07</div>
+    </section>
+
+    <!-- 8 · Employees + Loyalty combined -->
+    <section class="slide warm">
+      <div class="grain"></div>
+      <div class="head anim"><div class="kicker glass"><span class="kdot"></span> ⑤ Staff &amp; Customers</div><span class="num">the people</span></div>
+      <div class="body">
+        <div class="copy">
+          <h1 class="title anim">Manage your team<br>and reward regulars.</h1>
+          <p class="lede muted anim">Attendance, schedules, and roles for staff — points, coupons, and tiers for customers.</p>
+        </div>
+        <div class="visual anim">
+          <div class="fgrid">
+            <div class="fitem"><div class="fi-ic">🕒</div><div class="fi-t">Attendance</div><div class="fi-b">Clock in/out, late &amp; OT</div></div>
+            <div class="fitem"><div class="fi-ic">👥</div><div class="fi-t">Roles</div><div class="fi-b">Owner → cashier → kitchen</div></div>
+            <div class="fitem"><div class="fi-ic">🎁</div><div class="fi-t">Loyalty points</div><div class="fi-b">Earn &amp; redeem at checkout</div></div>
+            <div class="fitem"><div class="fi-ic">🏷️</div><div class="fi-t">Coupons</div><div class="fi-b">Discounts &amp; promos</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="counter">08</div>
+    </section>
+
+    <!-- 9 · Analytics -->
+    <section class="slide warm">
+      <div class="grain"></div>
+      <div class="head anim"><div class="kicker glass"><span class="kdot"></span> ⑥ Analytics &amp; Reports</div><span class="num">know your numbers</span></div>
+      <h1 class="title anim" style="margin-top:16px">Know exactly how today went.</h1>
+      <div class="body">
+        <div class="visual anim" style="flex:1">
+          <div class="card">
+            <div class="stats">
+              <div class="stat"><div class="sl">Net sales</div><div class="sv">₱18,420</div><div class="up">▲ 12%</div></div>
+              <div class="stat"><div class="sl">Orders</div><div class="sv">96</div><div class="up">▲ 8%</div></div>
+              <div class="stat"><div class="sl">Profit</div><div class="sv">₱7,240</div><div class="up">▲ 15%</div></div>
+            </div>
+            <div class="bars">
+              <div class="bar" style="height:40%"></div><div class="bar" style="height:58%"></div><div class="bar" style="height:72%"></div><div class="bar" style="height:52%"></div><div class="bar" style="height:88%"></div><div class="bar" style="height:100%"></div><div class="bar" style="height:66%"></div><div class="bar" style="height:46%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="counter">09</div>
+    </section>
+
+    <!-- 10 · Multi-business -->
+    <section class="slide">
+      <div class="head anim"><div class="kicker red"><span class="kdot"></span> ⑦ Multi-business</div><span class="num">one account</span></div>
+      <div class="body">
+        <div class="copy">
+          <h1 class="title anim" style="color:var(--ink)">Every business,<br><span class="accent">one login.</span></h1>
+          <ul class="checks anim">
+            <li><span class="tick">✓</span> Run unlimited businesses</li>
+            <li><span class="tick">✓</span> Each fully isolated &amp; secure</li>
+            <li><span class="tick">✓</span> Branded with your colors &amp; logo</li>
+          </ul>
+        </div>
+        <div class="visual anim">
+          <div class="fgrid">
+            <div class="fitem" style="border-left:6px solid #DC2626"><div class="fi-t">Teresa's Eatery</div><div class="fi-b">Quezon City · red brand</div></div>
+            <div class="fitem" style="border-left:6px solid #16A34A"><div class="fi-t">Green Bowl</div><div class="fi-b">Makati · green brand</div></div>
+            <div class="fitem" style="border-left:6px solid #2563EB"><div class="fi-t">Blue Café</div><div class="fi-b">Cebu · blue brand</div></div>
+            <div class="fitem" style="border-left:6px solid #CA8A04"><div class="fi-t">+ add another</div><div class="fi-b">Switch in one tap</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="counter" style="color:var(--ink)">10</div>
+    </section>
+
+    <!-- 11 · Pricing -->
+    <section class="slide warm">
+      <div class="grain"></div>
+      <div class="head anim"><div class="kicker glass"><span class="kdot"></span> Pricing</div><span class="num">simple</span></div>
+      <div class="center" style="justify-content:center">
+        <h1 class="title anim">One price. Every feature.</h1>
+        <div class="price-wrap anim">
+          <div class="pcard"><div class="pn">Monthly</div><div class="pa">₱800<span class="pper">/mo</span></div></div>
+          <div class="pcard hi"><div class="ptag">2 months free</div><div class="pn">Yearly</div><div class="pa">₱8,000<span class="pper">/yr</span></div></div>
+        </div>
+        <p class="lede muted anim">No hardware. No per-terminal fees. No hidden charges.</p>
+      </div>
+      <div class="counter">11</div>
+    </section>
+
+    <!-- 12 · Outro -->
+    <section class="slide warm">
+      <div class="grain"></div>
+      <div class="head anim"><div class="brand"><div class="logo glass"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"/><line x1="6" y1="17" x2="18" y2="17"/></svg></div><span class="wm">POS System</span></div></div>
+      <div class="center">
+        <h1 class="display anim" style="font-size:120px">Ready to run a<br><em>smarter kitchen?</em></h1>
+        <div class="cta anim">Get started today →</div>
+        <div class="fb anim"><svg viewBox="0 0 24 24"><path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.96.93-1.96 1.89v2.25h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07Z"/></svg> facebook.com/webdevbot</div>
+      </div>
+      <div class="counter">12</div>
+    </section>
+
+  </div>
+</div>
+<div class="hint" id="hint">▶ Auto-playing · Space = pause · ← → = navigate · F = fullscreen</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const pbar = document.getElementById('pbar');
+  const deck = document.getElementById('deck');
+  const hint = document.getElementById('hint');
+  // Per-slide durations (ms) — longer for content-heavy slides.
+  const DUR = [4200,6000,6500,7000,6000,6000,6500,6500,6000,6500,5500,6000];
+  let i = 0, paused = false, t0 = 0, raf = 0, elapsed = 0;
+
+  function scaleDeck(){
+    const s = Math.min(window.innerWidth/1920, window.innerHeight/1080);
+    deck.style.transform = `scale(${s})`;
+  }
+  window.addEventListener('resize', scaleDeck); scaleDeck();
+
+  function show(n){
+    slides[i].classList.remove('active');
+    i = (n + slides.length) % slides.length;
+    slides[i].classList.add('active');
+    elapsed = 0; t0 = performance.now();
+  }
+  function tick(now){
+    if(!paused){
+      elapsed += now - t0; t0 = now;
+      const d = DUR[i] || 6000;
+      pbar.style.width = Math.min(100, (elapsed/d)*100) + '%';
+      if(elapsed >= d){ pbar.style.width='0%'; show(i+1); }
+    } else { t0 = now; }
+    raf = requestAnimationFrame(tick);
+  }
+  function togglePause(){ paused = !paused; deck.classList.toggle('paused', paused); }
+
+  document.addEventListener('keydown', (e)=>{
+    if(e.code==='Space'){ e.preventDefault(); togglePause(); }
+    else if(e.code==='ArrowRight'){ pbar.style.width='0%'; show(i+1); }
+    else if(e.code==='ArrowLeft'){ pbar.style.width='0%'; show(i-1); }
+    else if(e.key.toLowerCase()==='f'){ if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); }
+  });
+  deck.addEventListener('click', ()=>{ pbar.style.width='0%'; show(i+1); });
+  setTimeout(()=>{ hint.style.opacity='0'; hint.style.transition='opacity 1s'; }, 6000);
+
+  slides[0].classList.add('active');
+  t0 = performance.now();
+  raf = requestAnimationFrame(tick);
+</script>
+</body>
+</html>

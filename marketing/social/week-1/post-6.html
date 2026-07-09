@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1080px; }
+  body {
+    font-family: "Inter", system-ui, sans-serif; color: #fff;
+    background:
+      radial-gradient(110% 110% at 100% 100%, rgba(245,158,11,.5) 0%, transparent 55%),
+      linear-gradient(135deg, #DC2626 0%, #EA580C 60%, #D97706 100%);
+    position: relative; overflow: hidden;
+  }
+  .grain { position: absolute; inset: 0; opacity: .5;
+    background-image: radial-gradient(rgba(255,255,255,.13) 1.5px, transparent 1.5px); background-size: 30px 30px; }
+  .frame { position: relative; height: 100%; padding: 76px 80px; display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .logo { width: 60px; height: 60px; border-radius: 18px; background: rgba(255,255,255,.16); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .logo svg { width: 34px; height: 34px; stroke: #fff; }
+  .wordmark { font-size: 28px; font-weight: 600; }
+  .kicker { display: inline-flex; align-self: flex-start; margin-top: 54px; background: rgba(255,255,255,.16);
+    border: 1px solid rgba(255,255,255,.24); padding: 10px 20px; border-radius: 999px; font-size: 22px; font-weight: 600; }
+  h1 { font-family: "Fraunces", serif; font-weight: 600; font-size: 92px; line-height: 1.02; letter-spacing: -.02em; margin-top: 26px; }
+  .sub { font-size: 32px; line-height: 1.4; color: rgba(255,255,255,.9); margin-top: 26px; max-width: 700px; }
+  .stage { flex: 1; display: flex; align-items: center; }
+  .panel { width: 100%; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+    border-radius: 24px; padding: 30px; backdrop-filter: blur(4px); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 26px; }
+  .stat { background: rgba(255,255,255,.12); border-radius: 18px; padding: 22px; }
+  .sl { font-size: 20px; color: rgba(255,255,255,.75); }
+  .sv { font-size: 44px; font-weight: 800; letter-spacing: -.02em; margin-top: 6px; }
+  .up { font-size: 20px; color: #BBF7D0; font-weight: 700; margin-top: 4px; }
+  .chart { display: flex; align-items: flex-end; gap: 16px; height: 190px; padding: 0 6px; }
+  .col { flex: 1; background: rgba(255,255,255,.28); border-radius: 10px 10px 0 0; }
+</style>
+</head>
+<body>
+  <div class="grain"></div>
+  <div class="frame">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"/><line x1="6" y1="17" x2="18" y2="17"/></svg></div>
+      <span class="wordmark">POS System</span>
+    </div>
+    <span class="kicker">⑤ Sales Analytics</span>
+    <h1>Know exactly how<br>today went.</h1>
+    <p class="sub">Net sales, profit, best-sellers, and busiest hours — updated as you sell.</p>
+    <div class="stage">
+      <div class="panel">
+        <div class="stats">
+          <div class="stat"><div class="sl">Net sales</div><div class="sv">₱18,420</div><div class="up">▲ 12% vs yest.</div></div>
+          <div class="stat"><div class="sl">Orders</div><div class="sv">96</div><div class="up">▲ 8%</div></div>
+          <div class="stat"><div class="sl">Profit</div><div class="sv">₱7,240</div><div class="up">▲ 15%</div></div>
+        </div>
+        <div class="chart">
+          <div class="col" style="height:40%"></div><div class="col" style="height:58%"></div>
+          <div class="col" style="height:72%"></div><div class="col" style="height:52%"></div>
+          <div class="col" style="height:88%"></div><div class="col" style="height:100%"></div>
+          <div class="col" style="height:66%"></div><div class="col" style="height:46%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

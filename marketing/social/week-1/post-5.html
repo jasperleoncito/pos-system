@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1080px; }
+  body {
+    font-family: "Inter", system-ui, sans-serif; color: #2A1410;
+    background: radial-gradient(90% 70% at 100% 100%, rgba(245,158,11,.16) 0%, transparent 60%), #FDF8F1;
+    position: relative; overflow: hidden;
+  }
+  .frame { position: relative; height: 100%; padding: 76px 80px; display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .logo { width: 60px; height: 60px; border-radius: 18px; background: #DC2626; display: flex; align-items: center; justify-content: center; }
+  .logo svg { width: 34px; height: 34px; stroke: #fff; }
+  .wordmark { font-size: 28px; font-weight: 600; }
+  .kicker { display: inline-flex; align-self: flex-start; margin-top: 54px; background: #FCE9D6; color: #B45309;
+    padding: 10px 20px; border-radius: 999px; font-size: 22px; font-weight: 600; }
+  h1 { font-family: "Fraunces", serif; font-weight: 600; font-size: 96px; line-height: 1; letter-spacing: -.02em; margin-top: 26px; }
+  h1 span { color: #DC2626; }
+  .sub { font-size: 32px; line-height: 1.4; color: #7A6A62; margin-top: 26px; max-width: 640px; }
+  .stage { flex: 1; display: flex; align-items: center; }
+  .card { width: 100%; background: #fff; border: 1px solid #EFE3D6; border-radius: 24px; padding: 30px 34px;
+    box-shadow: 0 30px 60px -30px rgba(120,40,10,.32); }
+  .item { display: grid; grid-template-columns: 220px 1fr 120px; align-items: center; gap: 20px; padding: 16px 0; border-bottom: 1px solid #F1E6D9; }
+  .item:last-child { border-bottom: none; }
+  .iname { font-size: 26px; font-weight: 700; }
+  .bar { height: 16px; border-radius: 999px; background: #F1E6D9; overflow: hidden; }
+  .fill { height: 100%; border-radius: 999px; }
+  .tag { justify-self: end; font-size: 20px; font-weight: 700; padding: 6px 16px; border-radius: 999px; }
+  .ok { background: #DCFCE7; color: #15803D; }
+  .low { background: #FEF3C7; color: #B45309; }
+  .out { background: #FEE2E2; color: #B91C1C; }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"/><line x1="6" y1="17" x2="18" y2="17"/></svg></div>
+      <span class="wordmark">POS System</span>
+    </div>
+    <span class="kicker">④ Inventory &amp; Recipes</span>
+    <h1>Your stock<br>counts <span>itself.</span></h1>
+    <p class="sub">Every sale deducts ingredients by recipe. Get low-stock alerts before you run out.</p>
+    <div class="stage">
+      <div class="card">
+        <div class="item"><span class="iname">Rice (kg)</span><div class="bar"><div class="fill" style="width:78%;background:#22C55E"></div></div><span class="tag ok">In stock</span></div>
+        <div class="item"><span class="iname">Pork (kg)</span><div class="bar"><div class="fill" style="width:24%;background:#F59E0B"></div></div><span class="tag low">Low</span></div>
+        <div class="item"><span class="iname">Cooking Oil (L)</span><div class="bar"><div class="fill" style="width:6%;background:#EF4444"></div></div><span class="tag out">Reorder</span></div>
+        <div class="item"><span class="iname">Eggs (pcs)</span><div class="bar"><div class="fill" style="width:62%;background:#22C55E"></div></div><span class="tag ok">In stock</span></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

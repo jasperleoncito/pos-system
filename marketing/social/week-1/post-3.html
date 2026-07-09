@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1080px; }
+  body {
+    font-family: "Inter", system-ui, sans-serif; color: #fff;
+    background:
+      radial-gradient(110% 110% at 0% 0%, rgba(245,158,11,.5) 0%, transparent 55%),
+      linear-gradient(135deg, #B91C1C 0%, #DC2626 45%, #EA580C 100%);
+    position: relative; overflow: hidden;
+  }
+  .grain { position: absolute; inset: 0; opacity: .5;
+    background-image: radial-gradient(rgba(255,255,255,.13) 1.5px, transparent 1.5px); background-size: 30px 30px; }
+  .frame { position: relative; height: 100%; padding: 76px 80px; display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .logo { width: 60px; height: 60px; border-radius: 18px; background: rgba(255,255,255,.16);
+    display: flex; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .logo svg { width: 34px; height: 34px; stroke: #fff; }
+  .wordmark { font-size: 28px; font-weight: 600; }
+  .kicker { display: inline-flex; align-self: flex-start; margin-top: 54px; background: rgba(255,255,255,.16);
+    border: 1px solid rgba(255,255,255,.24); padding: 10px 20px; border-radius: 999px; font-size: 22px; font-weight: 600; }
+  h1 { font-family: "Fraunces", serif; font-weight: 600; font-size: 92px; line-height: 1.02; letter-spacing: -.02em; margin-top: 26px; }
+  .sub { font-size: 32px; line-height: 1.4; color: rgba(255,255,255,.9); margin-top: 26px; max-width: 720px; }
+  .stage { flex: 1; display: flex; align-items: center; gap: 34px; margin-top: 20px; }
+  .methods { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; flex: 1; }
+  .m { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.2); border-radius: 18px;
+    padding: 22px 24px; font-size: 27px; font-weight: 700; display: flex; align-items: center; gap: 14px; }
+  .m .ic { width: 46px; height: 46px; border-radius: 12px; background: rgba(255,255,255,.2); display: flex; align-items: center; justify-content: center; font-size: 24px; }
+  .receipt { width: 300px; background: #fff; color: #2A1410; border-radius: 16px; padding: 26px 24px;
+    box-shadow: 0 30px 60px -24px rgba(80,10,0,.5); font-size: 20px; }
+  .receipt .rc-h { text-align: center; font-weight: 800; font-size: 24px; }
+  .receipt .rc-s { text-align: center; color: #9a8a82; font-size: 16px; margin-bottom: 16px; }
+  .receipt .rrow { display: flex; justify-content: space-between; border-top: 1px dashed #e5d8cc; padding: 9px 0; }
+  .receipt .rtot { font-weight: 800; color: #DC2626; }
+</style>
+</head>
+<body>
+  <div class="grain"></div>
+  <div class="frame">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"/><line x1="6" y1="17" x2="18" y2="17"/></svg></div>
+      <span class="wordmark">POS System</span>
+    </div>
+    <span class="kicker">② Payments &amp; Receipts</span>
+    <h1>Cash, GCash, Maya —<br>even split bills.</h1>
+    <p class="sub">Accept any payment on one order and print an 80mm VAT receipt every time.</p>
+    <div class="stage">
+      <div class="methods">
+        <div class="m"><span class="ic">💵</span> Cash</div>
+        <div class="m"><span class="ic">📱</span> GCash</div>
+        <div class="m"><span class="ic">🅼</span> Maya</div>
+        <div class="m"><span class="ic">💳</span> Card</div>
+      </div>
+      <div class="receipt">
+        <div class="rc-h">Teresa's Eatery</div>
+        <div class="rc-s">Official Receipt</div>
+        <div class="rrow"><span>Pork Sisig ×2</span><span>₱240</span></div>
+        <div class="rrow"><span>Iced Tea ×1</span><span>₱45</span></div>
+        <div class="rrow"><span>VAT (12% incl.)</span><span>₱30.54</span></div>
+        <div class="rrow rtot"><span>Total</span><span>₱285.00</span></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
