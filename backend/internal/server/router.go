@@ -79,6 +79,11 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		Auditor: auditSvc, Logger: deps.Logger, AppBaseURL: deps.Config.HTTP.AppURL, AppName: deps.Config.App.Name,
 	})
 	tenantSvc := service.NewTenantService(tenantRepo, settingsRepo, objectStore, auditSvc, deps.Logger)
+	teamSvc := service.NewTeamService(service.TeamServiceDeps{
+		Users: userRepo, Memberships: membershipRepo, Tenants: tenantRepo, Settings: settingsRepo,
+		OTP: otpStore, Mailer: jobQueue, Auditor: auditSvc, Logger: deps.Logger,
+		AppBaseURL: deps.Config.HTTP.AppURL, AppName: deps.Config.App.Name,
+	})
 	productRepo := postgres.NewProductRepo(deps.DB)
 	taxRepo := postgres.NewTaxRepo(deps.DB)
 	catalogSvc := service.NewCatalogService(
@@ -99,6 +104,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	healthHandler := v1.NewHealthHandler(deps.DB, deps.Redis, deps.MinIO, deps.Config.MinIO.Bucket)
 	authHandler := v1.NewAuthHandler(authSvc)
 	tenantHandler := v1.NewTenantHandler(tenantSvc)
+	teamHandler := v1.NewTeamHandler(teamSvc)
 	catalogHandler := v1.NewCatalogHandler(catalogSvc)
 	orderHandler := v1.NewOrderHandler(orderSvc, objectStore)
 	promoHandler := v1.NewPromoHandler(promoSvc)
@@ -167,6 +173,17 @@ func NewRouter(deps Dependencies) *gin.Engine {
 			middleware.RequirePermission(rbac.PermTenantSettingsWrite), tenantHandler.UpdateSettings)
 		tenantGroup.POST("/logo",
 			middleware.RequirePermission(rbac.PermTenantSettingsWrite), tenantHandler.UploadLogo)
+	}
+
+	// ---- team management routes (owner via users:manage) ----
+	teamGroup := api.Group("/team", middleware.Auth(tokens), middleware.RequireTenant(),
+		middleware.RequirePermission(rbac.PermUsersManage))
+	{
+		teamGroup.GET("", teamHandler.ListMembers)
+		teamGroup.POST("", teamHandler.InviteMember)
+		teamGroup.PATCH("/:userId/role", teamHandler.UpdateMemberRole)
+		teamGroup.DELETE("/:userId", teamHandler.RemoveMember)
+		teamGroup.POST("/:userId/resend-invite", teamHandler.ResendInvite)
 	}
 
 	// ---- catalog routes ----
@@ -360,6 +377,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	adminGroup := api.Group("/admin", middleware.Auth(tokens), middleware.RequireSuperAdmin())
 	{
 		adminGroup.GET("/tenants", tenantHandler.AdminListTenants)
+		adminGroup.POST("/tenants", teamHandler.AdminCreateTenant)
 		adminGroup.PATCH("/tenants/:id/status", tenantHandler.AdminSetTenantStatus)
 		adminGroup.PATCH("/tenants/:id/plan", tenantHandler.AdminSetTenantPlan)
 		adminGroup.GET("/stats", tenantHandler.AdminStats)

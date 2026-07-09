@@ -50,6 +50,18 @@ type Membership struct {
 	TenantSlug string `json:"tenant_slug,omitempty"`
 }
 
+// Member is a membership joined with the user's account details, used
+// by the team management listing.
+type Member struct {
+	Membership
+	FullName        string     `json:"full_name"`
+	Email           string     `json:"email"`
+	UserStatus      string     `json:"user_status"`
+	EmailVerifiedAt *time.Time `json:"email_verified_at"`
+	JoinedAt        time.Time  `json:"joined_at"`
+	IsOwner         bool       `json:"is_owner"`
+}
+
 type Repository interface {
 	Create(ctx context.Context, t *Tenant) error
 	GetByID(ctx context.Context, id string) (*Tenant, error)
@@ -72,6 +84,9 @@ type MembershipRepository interface {
 	Get(ctx context.Context, tenantID, userID string) (*Membership, error)
 	ListByUser(ctx context.Context, userID string) ([]Membership, error)
 	ListByTenant(ctx context.Context, tenantID string) ([]Membership, error)
+	// ListMembers joins memberships with user account details for the
+	// team management screen.
+	ListMembers(ctx context.Context, tenantID string) ([]Member, error)
 	UpdateRole(ctx context.Context, tenantID, userID, role string) error
 	Delete(ctx context.Context, tenantID, userID string) error
 }

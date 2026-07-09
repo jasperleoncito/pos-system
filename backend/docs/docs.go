@@ -75,6 +75,48 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Create a business with its owner account (super admin)",
+                "parameters": [
+                    {
+                        "description": "Business + owner",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.AdminCreateTenantRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorEnvelope"
+                        }
+                    }
+                }
             }
         },
         "/admin/tenants/{id}/plan": {
@@ -4272,6 +4314,183 @@ const docTemplate = `{
                 }
             }
         },
+        "/team": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "team"
+                ],
+                "summary": "List team members with account details",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "team"
+                ],
+                "summary": "Invite or create a staff account (emails a set-password link)",
+                "parameters": [
+                    {
+                        "description": "Member details",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.InviteMemberRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/team/{userId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "team"
+                ],
+                "summary": "Remove a member from the team",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/team/{userId}/resend-invite": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "team"
+                ],
+                "summary": "Resend the set-password invite email to a member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/team/{userId}/role": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "team"
+                ],
+                "summary": "Change a team member's role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New role",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateMemberRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/tenant/logo": {
             "post": {
                 "security": [
@@ -4436,6 +4655,35 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dto.AdminCreateTenantRequest": {
+            "type": "object",
+            "required": [
+                "business_name",
+                "business_slug",
+                "owner_email",
+                "owner_full_name"
+            ],
+            "properties": {
+                "business_name": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "minLength": 2
+                },
+                "business_slug": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "minLength": 2
+                },
+                "owner_email": {
+                    "type": "string"
+                },
+                "owner_full_name": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "minLength": 2
+                }
+            }
+        },
         "dto.CategoryRequest": {
             "type": "object",
             "required": [
@@ -4808,6 +5056,33 @@ const docTemplate = `{
                 },
                 "unit_id": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.InviteMemberRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "full_name",
+                "role"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "full_name": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "minLength": 2
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "manager",
+                        "cashier",
+                        "kitchen",
+                        "employee"
+                    ]
                 }
             }
         },
@@ -5482,6 +5757,23 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 40,
                     "minLength": 1
+                }
+            }
+        },
+        "dto.UpdateMemberRoleRequest": {
+            "type": "object",
+            "required": [
+                "role"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "manager",
+                        "cashier",
+                        "kitchen",
+                        "employee"
+                    ]
                 }
             }
         },

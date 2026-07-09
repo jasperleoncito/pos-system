@@ -12,10 +12,14 @@ Full-PRD build (`first-prompt.md`) in sequential phases. The system must stay ru
 ### ✅ C2 — Hide subscription plans in super admin
 Plan selector removed from /admin/tenants UI (backend endpoint + tenants.plan column stay dormant for later billing work).
 
+### ✅ C3 — Team management (owner invites staff)
+`tenant.Member` (membership ⋈ users) + `ListMembers`; `TeamService` (list/invite/change role/remove/resend invite) under `users:manage` at `/api/v1/team`. Invite = create user with unguessable password + set-password email (reuses the password_reset token purpose, 7-day TTL, link `/reset-password?welcome=1` with "Welcome! Set your password" copy); existing emails are attached with the chosen role and get a "you've been added" email instead. Protections: owner role never assignable, owner/self role+removal locked; removal only soft-deletes the membership (account may belong to other tenants). UI: Settings → Team card (owner only) → member list w/ Owner/You/Invited badges, per-row role select, resend-invite, remove AlertDialog, invite dialog.
+
+### ✅ C4 — Super-admin: create business + owner
+`TeamService.AdminCreateBusiness`: tenant (slugified, PHP/Asia-Manila, default brand colors) + settings + owner membership; owner account created-with-invite or reused-with-notification exactly like C3. POST `/admin/tenants` + "New business" dialog on /admin/tenants (auto-slug from name). Unit tests cover both invite paths, all protections, and duplicate slug rejection (`team_service_test.go`).
+
 ### ⬜ Backlog (not scheduled)
-- Team management: owner invites/creates manager/cashier/kitchen/employee accounts under users:manage (invite email w/ set-password link).
 - Plan-based feature gating once billing matters (uses the dormant tenants.plan).
-- Super-admin: create business + owner from the console.
 
 ## Requirements beyond the PRD (user decisions)
 

@@ -93,6 +93,33 @@ func (r *MembershipRepo) ListByTenant(ctx context.Context, tenantID string) ([]t
 	return memberships, rows.Err()
 }
 
+func (r *MembershipRepo) ListMembers(ctx context.Context, tenantID string) ([]tenant.Member, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT tu.id, tu.tenant_id, tu.user_id, tu.role, tu.created_at,
+		       u.full_name, u.email, u.status, u.email_verified_at,
+		       (t.owner_user_id = u.id) AS is_owner
+		FROM tenant_users tu
+		JOIN users u ON u.id = tu.user_id AND u.deleted_at IS NULL
+		JOIN tenants t ON t.id = tu.tenant_id
+		WHERE tu.tenant_id = $1 AND tu.deleted_at IS NULL
+		ORDER BY (t.owner_user_id = u.id) DESC, u.full_name`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list team members: %w", err)
+	}
+	defer rows.Close()
+
+	var members []tenant.Member
+	for rows.Next() {
+		var m tenant.Member
+		if err := rows.Scan(&m.ID, &m.TenantID, &m.UserID, &m.Role, &m.JoinedAt,
+			&m.FullName, &m.Email, &m.UserStatus, &m.EmailVerifiedAt, &m.IsOwner); err != nil {
+			return nil, fmt.Errorf("failed to scan team member: %w", err)
+		}
+		members = append(members, m)
+	}
+	return members, rows.Err()
+}
+
 func (r *MembershipRepo) UpdateRole(ctx context.Context, tenantID, userID, role string) error {
 	_, err := r.db.Exec(ctx, `
 		UPDATE tenant_users SET role = $3, updated_at = now()

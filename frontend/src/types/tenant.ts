@@ -1,3 +1,5 @@
+import type { Role } from "@/types/auth";
+
 export interface TenantSettings {
   id: string;
   tenant_id: string;
@@ -19,6 +21,19 @@ export interface TenantSettings {
   logo_url: string;
   logo_thumb_url: string;
   favicon_urls: Record<string, string>;
+}
+
+export interface TeamMember {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  role: Role;
+  full_name: string;
+  email: string;
+  user_status: "active" | "disabled";
+  email_verified_at: string | null;
+  joined_at: string;
+  is_owner: boolean;
 }
 
 export interface Tenant {

@@ -20,6 +20,8 @@ function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
+  // Invite emails link here with welcome=1 — same token flow, warmer copy.
+  const isWelcome = searchParams.get("welcome") === "1";
 
   const {
     register,
@@ -35,7 +37,9 @@ function ResetPasswordForm() {
       });
     },
     onSuccess: () => {
-      toast.success("Password updated — please sign in again");
+      toast.success(
+        isWelcome ? "Password set — sign in to get started" : "Password updated — please sign in again",
+      );
       router.replace("/login");
     },
     onError: (error) => toast.error(getApiErrorMessage(error)),
@@ -58,9 +62,13 @@ function ResetPasswordForm() {
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h2 className="text-2xl font-bold tracking-tight">Choose a new password</h2>
+        <h2 className="text-2xl font-bold tracking-tight">
+          {isWelcome ? "Welcome! Set your password" : "Choose a new password"}
+        </h2>
         <p className="text-sm text-muted-foreground">
-          You&apos;ll be signed out of all devices afterwards
+          {isWelcome
+            ? "Pick a password for your new account, then sign in"
+            : "You'll be signed out of all devices afterwards"}
         </p>
       </header>
 
@@ -81,7 +89,7 @@ function ResetPasswordForm() {
         </div>
         <Button type="submit" className="w-full" disabled={reset.isPending}>
           {reset.isPending && <Loader2 className="size-4 animate-spin" aria-hidden />}
-          Update password
+          {isWelcome ? "Set password" : "Update password"}
         </Button>
       </form>
     </div>

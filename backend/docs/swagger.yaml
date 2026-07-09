@@ -1,5 +1,27 @@
 basePath: /api/v1
 definitions:
+  dto.AdminCreateTenantRequest:
+    properties:
+      business_name:
+        maxLength: 120
+        minLength: 2
+        type: string
+      business_slug:
+        maxLength: 60
+        minLength: 2
+        type: string
+      owner_email:
+        type: string
+      owner_full_name:
+        maxLength: 120
+        minLength: 2
+        type: string
+    required:
+    - business_name
+    - business_slug
+    - owner_email
+    - owner_full_name
+    type: object
   dto.CategoryRequest:
     properties:
       description:
@@ -266,6 +288,26 @@ definitions:
     - name
     - type
     - unit_id
+    type: object
+  dto.InviteMemberRequest:
+    properties:
+      email:
+        type: string
+      full_name:
+        maxLength: 120
+        minLength: 2
+        type: string
+      role:
+        enum:
+        - manager
+        - cashier
+        - kitchen
+        - employee
+        type: string
+    required:
+    - email
+    - full_name
+    - role
     type: object
   dto.KitchenStatusRequest:
     properties:
@@ -739,6 +781,18 @@ definitions:
     - abbreviation
     - name
     type: object
+  dto.UpdateMemberRoleRequest:
+    properties:
+      role:
+        enum:
+        - manager
+        - cashier
+        - kitchen
+        - employee
+        type: string
+    required:
+    - role
+    type: object
   dto.UpdateTenantSettingsRequest:
     properties:
       accent_color:
@@ -888,6 +942,32 @@ paths:
       security:
       - BearerAuth: []
       summary: List all tenants (super admin)
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Business + owner
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AdminCreateTenantRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Create a business with its owner account (super admin)
       tags:
       - admin
   /admin/tenants/{id}/plan:
@@ -3466,6 +3546,114 @@ paths:
       summary: Update a tax
       tags:
       - catalog
+  /team:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List team members with account details
+      tags:
+      - team
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Member details
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.InviteMemberRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Invite or create a staff account (emails a set-password link)
+      tags:
+      - team
+  /team/{userId}:
+    delete:
+      parameters:
+      - description: User ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Remove a member from the team
+      tags:
+      - team
+  /team/{userId}/resend-invite:
+    post:
+      parameters:
+      - description: User ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Resend the set-password invite email to a member
+      tags:
+      - team
+  /team/{userId}/role:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: User ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      - description: New role
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateMemberRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Change a team member's role
+      tags:
+      - team
   /tenant/logo:
     post:
       consumes:

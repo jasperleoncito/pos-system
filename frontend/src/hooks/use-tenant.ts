@@ -99,6 +99,29 @@ export function useAdminStats() {
   });
 }
 
+export interface AdminCreateTenantInput {
+  business_name: string;
+  business_slug: string;
+  owner_full_name: string;
+  owner_email: string;
+}
+
+export function useAdminCreateTenant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: AdminCreateTenantInput) => {
+      const res = await api.post<ApiEnvelope<Tenant>>("/admin/tenants", input);
+      return res.data.data;
+    },
+    onSuccess: (t) => {
+      toast.success(`${t.name} created — the owner has been emailed`);
+      queryClient.invalidateQueries({ queryKey: ["admin", "tenants"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "stats"] });
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error)),
+  });
+}
+
 export function useSetTenantPlan() {
   const queryClient = useQueryClient();
   return useMutation({

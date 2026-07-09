@@ -1,9 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
+import { toast } from "sonner";
 
-import { useAdminStats, useAdminTenants, useSetTenantStatus } from "@/hooks/use-tenant";
+import {
+  useAdminCreateTenant,
+  useAdminStats,
+  useAdminTenants,
+  useSetTenantStatus,
+} from "@/hooks/use-tenant";
 import { formatCentavos } from "@/lib/currency";
 import type { Tenant } from "@/types/tenant";
 import {
@@ -20,7 +26,137 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function NewBusinessDialog() {
+  const createTenant = useAdminCreateTenant();
+  const [open, setOpen] = useState(false);
+  const [businessName, setBusinessName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [ownerName, setOwnerName] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+
+  const reset = () => {
+    setBusinessName("");
+    setSlug("");
+    setSlugTouched(false);
+    setOwnerName("");
+    setOwnerEmail("");
+  };
+
+  const submit = () => {
+    if (businessName.trim().length < 2 || slug.trim().length < 2) {
+      toast.error("Business name and URL slug are required");
+      return;
+    }
+    if (ownerName.trim().length < 2 || !ownerEmail.trim()) {
+      toast.error("Owner name and email are required");
+      return;
+    }
+    createTenant.mutate(
+      {
+        business_name: businessName.trim(),
+        business_slug: slug.trim(),
+        owner_full_name: ownerName.trim(),
+        owner_email: ownerEmail.trim(),
+      },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button onClick={() => setOpen(true)}>
+        <Plus className="size-4" aria-hidden />
+        New business
+      </Button>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create a business</DialogTitle>
+          <DialogDescription>
+            The owner gets an email to set their password (or keeps their existing login if the
+            email is already registered).
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="nb-name">Business name</Label>
+            <Input
+              id="nb-name"
+              value={businessName}
+              onChange={(e) => {
+                setBusinessName(e.target.value);
+                if (!slugTouched) setSlug(slugify(e.target.value));
+              }}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="nb-slug">URL slug</Label>
+            <Input
+              id="nb-slug"
+              placeholder="my-restaurant"
+              value={slug}
+              onChange={(e) => {
+                setSlugTouched(true);
+                setSlug(slugify(e.target.value));
+              }}
+            />
+            <p className="text-xs text-muted-foreground">Used in the app URL: /{slug || "my-restaurant"}/…</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="nb-owner">Owner name</Label>
+              <Input id="nb-owner" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nb-email">Owner email</Label>
+              <Input
+                id="nb-email"
+                type="email"
+                value={ownerEmail}
+                onChange={(e) => setOwnerEmail(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={createTenant.isPending}>
+            {createTenant.isPending && <Loader2 className="size-4 animate-spin" aria-hidden />}
+            Create business
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function TenantRow({ tenant }: { tenant: Tenant }) {
   const setStatus = useSetTenantStatus();
@@ -91,9 +227,12 @@ export default function AdminTenantsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Platform</h1>
-        <p className="text-muted-foreground">System analytics and every business on the platform</p>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight">Platform</h1>
+          <p className="text-muted-foreground">System analytics and every business on the platform</p>
+        </div>
+        <NewBusinessDialog />
       </header>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
