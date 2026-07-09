@@ -11,6 +11,7 @@ const (
 	TypeLowStock     = "low_stock"
 	TypeAttendance   = "attendance"
 	TypeDailySummary = "daily_summary"
+	TypeBilling      = "billing" // renewal notices — always emailed, no pref switch
 	TypeSystem       = "system"
 )
 

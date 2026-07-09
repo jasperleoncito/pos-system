@@ -46,6 +46,7 @@ func main() {
 		Users:         postgres.NewUserRepo(db),
 		Notifications: postgres.NewNotificationRepo(db),
 		Analytics:     postgres.NewAnalyticsRepo(db),
+		Billing:       postgres.NewBillingRepo(db),
 		Mailer: mailer.New(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.User,
 			cfg.SMTP.Password, cfg.SMTP.From, cfg.SMTP.FromName),
 		AppName: cfg.App.Name,
@@ -65,6 +66,7 @@ func main() {
 	if err := worker.RegisterDailySummaries(ctx, scheduler, handlers.Tenants, logger); err != nil {
 		logger.Warn("daily summary registration failed", "error", err)
 	}
+	worker.RegisterBillingSweep(scheduler, logger)
 
 	go func() {
 		if err := scheduler.Run(); err != nil {

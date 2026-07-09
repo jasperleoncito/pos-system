@@ -67,7 +67,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 	result, err := h.auth.Register(c.Request.Context(),
-		req.FullName, req.Email, req.Password, req.BusinessName, req.BusinessSlug, requestMeta(c))
+		req.FullName, req.Email, req.Password, req.BusinessName, req.BusinessSlug, req.Plan, requestMeta(c))
 	if err != nil {
 		respondError(c, err)
 		return

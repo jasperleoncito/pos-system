@@ -8,6 +8,7 @@ import { useTenantSettings } from "@/hooks/use-tenant";
 import { tenantThemeVars } from "@/lib/theme";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { SubscriptionGate } from "@/components/billing/subscription-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
@@ -86,7 +87,9 @@ export default function TenantLayout({ children }: { children: ReactNode }) {
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar auth={auth} tenantSlug={params.tenant} />
-        <main className="flex-1 p-4 sm:p-6">{children}</main>
+        <main className="flex-1 p-4 sm:p-6">
+          <SubscriptionGate>{children}</SubscriptionGate>
+        </main>
       </div>
     </div>
   );

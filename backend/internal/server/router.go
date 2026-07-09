@@ -18,6 +18,7 @@ import (
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/queue"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/response"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/token"
+	"github.com/jasperleoncito/pos-system/backend/internal/pkg/xendit"
 	"github.com/jasperleoncito/pos-system/backend/internal/realtime"
 	"github.com/jasperleoncito/pos-system/backend/internal/repository/miniostore"
 	"github.com/jasperleoncito/pos-system/backend/internal/repository/postgres"
@@ -84,6 +85,17 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		OTP: otpStore, Mailer: jobQueue, Auditor: auditSvc, Logger: deps.Logger,
 		AppBaseURL: deps.Config.HTTP.AppURL, AppName: deps.Config.App.Name,
 	})
+	billingSvc := service.NewBillingService(service.BillingServiceDeps{
+		Repo: postgres.NewBillingRepo(deps.DB), Tenants: tenantRepo, Users: userRepo,
+		Invoices: xendit.New(deps.Config.Xendit.SecretKey), Cache: redisrepo.NewCache(deps.Redis),
+		Auditor: auditSvc, Logger: deps.Logger,
+		AppBaseURL: deps.Config.HTTP.AppURL, AppName: deps.Config.App.Name,
+	})
+	teamSvc.SetBilling(billingSvc)
+	authSvc.SetBilling(billingSvc)
+	// Tenant routes 402 when the subscription lapses; billing + branding
+	// + notifications stay open so the pay-modal/blocked-screen work.
+	requireActive := middleware.RequireActiveSubscription(billingSvc, deps.Logger)
 	productRepo := postgres.NewProductRepo(deps.DB)
 	taxRepo := postgres.NewTaxRepo(deps.DB)
 	catalogSvc := service.NewCatalogService(
@@ -105,6 +117,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	authHandler := v1.NewAuthHandler(authSvc)
 	tenantHandler := v1.NewTenantHandler(tenantSvc)
 	teamHandler := v1.NewTeamHandler(teamSvc)
+	billingHandler := v1.NewBillingHandler(billingSvc, deps.Config.Xendit.WebhookToken)
 	catalogHandler := v1.NewCatalogHandler(catalogSvc)
 	orderHandler := v1.NewOrderHandler(orderSvc, objectStore)
 	promoHandler := v1.NewPromoHandler(promoSvc)
@@ -169,15 +182,29 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	{
 		// Readable by every member â€” branding must theme all roles' UI.
 		tenantGroup.GET("/settings", tenantHandler.GetSettings)
-		tenantGroup.PUT("/settings",
+		tenantGroup.PUT("/settings", requireActive,
 			middleware.RequirePermission(rbac.PermTenantSettingsWrite), tenantHandler.UpdateSettings)
-		tenantGroup.POST("/logo",
+		tenantGroup.POST("/logo", requireActive,
 			middleware.RequirePermission(rbac.PermTenantSettingsWrite), tenantHandler.UploadLogo)
+	}
+
+	// ---- billing routes ----
+	// Public: prices for the register page; the Xendit callback is
+	// authenticated by its x-callback-token header, not a JWT.
+	api.GET("/billing/plans", billingHandler.GetPlans)
+	api.POST("/webhooks/xendit", billingHandler.Webhook)
+	billingGroup := api.Group("/billing", middleware.Auth(tokens), middleware.RequireTenant())
+	{
+		// Every member may read status (staff blocked-screen needs it).
+		billingGroup.GET("/subscription", billingHandler.GetSubscription)
+		billingManage := middleware.RequirePermission(rbac.PermBillingManage)
+		billingGroup.POST("/checkout", billingManage, billingHandler.CreateCheckout)
+		billingGroup.GET("/payments", billingManage, billingHandler.ListPayments)
 	}
 
 	// ---- team management routes (owner via users:manage) ----
 	teamGroup := api.Group("/team", middleware.Auth(tokens), middleware.RequireTenant(),
-		middleware.RequirePermission(rbac.PermUsersManage))
+		requireActive, middleware.RequirePermission(rbac.PermUsersManage))
 	{
 		teamGroup.GET("", teamHandler.ListMembers)
 		teamGroup.POST("", teamHandler.InviteMember)
@@ -189,7 +216,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	// ---- catalog routes ----
 	catalogRead := middleware.RequirePermission(rbac.PermCatalogRead)
 	catalogWrite := middleware.RequirePermission(rbac.PermCatalogWrite)
-	catalogGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant())
+	catalogGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant(), requireActive)
 	{
 		catalogGroup.GET("/categories", catalogRead, catalogHandler.ListCategories)
 		catalogGroup.POST("/categories", catalogWrite, catalogHandler.CreateCategory)
@@ -217,7 +244,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	// ---- order & cash drawer routes ----
 	ordersCreate := middleware.RequirePermission(rbac.PermOrdersCreate)
 	ordersRead := middleware.RequirePermission(rbac.PermOrdersRead)
-	orderGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant())
+	orderGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant(), requireActive)
 	{
 		orderGroup.POST("/orders", ordersCreate, orderHandler.CreateOrder)
 		orderGroup.GET("/orders", ordersRead, orderHandler.ListOrders)
@@ -253,7 +280,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	// ---- kitchen display routes ----
 	kitchenRead := middleware.RequirePermission(rbac.PermKitchenRead)
 	kitchenWrite := middleware.RequirePermission(rbac.PermKitchenWrite)
-	kitchenGroup := api.Group("/kitchen", middleware.Auth(tokens), middleware.RequireTenant())
+	kitchenGroup := api.Group("/kitchen", middleware.Auth(tokens), middleware.RequireTenant(), requireActive)
 	{
 		kitchenGroup.GET("/orders", kitchenRead, kitchenHandler.ListOrders)
 		kitchenGroup.PATCH("/orders/:id/status", kitchenWrite, kitchenHandler.SetStatus)
@@ -267,7 +294,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	// ---- inventory routes ----
 	invRead := middleware.RequirePermission(rbac.PermInventoryRead)
 	invWrite := middleware.RequirePermission(rbac.PermInventoryWrite)
-	invGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant())
+	invGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant(), requireActive)
 	{
 		invGroup.GET("/units", invRead, inventoryHandler.ListUnits)
 		invGroup.POST("/units", invWrite, inventoryHandler.CreateUnit)
@@ -297,7 +324,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	// ---- employee & attendance routes ----
 	empRead := middleware.RequirePermission(rbac.PermEmployeesRead)
 	empWrite := middleware.RequirePermission(rbac.PermEmployeesWrite)
-	empGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant())
+	empGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant(), requireActive)
 	{
 		empGroup.GET("/employees", empRead, employeeHandler.ListEmployees)
 		empGroup.GET("/employees/:id", empRead, employeeHandler.GetEmployee)
@@ -325,7 +352,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 	// ---- customer & loyalty routes ----
 	custRead := middleware.RequirePermission(rbac.PermCustomersRead)
 	custWrite := middleware.RequirePermission(rbac.PermCustomersWrite)
-	custGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant())
+	custGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant(), requireActive)
 	{
 		custGroup.GET("/customers", custRead, customerHandler.ListCustomers)
 		custGroup.GET("/customers/:id", custRead, customerHandler.GetCustomer)
@@ -341,7 +368,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 
 	// ---- analytics & expenses routes ----
 	analyticsRead := middleware.RequirePermission(rbac.PermAnalyticsRead)
-	analyticsGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant(), analyticsRead)
+	analyticsGroup := api.Group("", middleware.Auth(tokens), middleware.RequireTenant(), requireActive, analyticsRead)
 	{
 		analyticsGroup.GET("/analytics/overview", analyticsHandler.Overview)
 		analyticsGroup.GET("/analytics/dashboard", analyticsHandler.Dashboard)
@@ -353,7 +380,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 
 	// ---- reports routes ----
 	reportsGroup := api.Group("/reports", middleware.Auth(tokens), middleware.RequireTenant(),
-		middleware.RequirePermission(rbac.PermReportsRead))
+		requireActive, middleware.RequirePermission(rbac.PermReportsRead))
 	{
 		reportsGroup.GET("", reportHandler.ListReportTypes)
 		reportsGroup.GET("/:type", reportHandler.GetReport)
@@ -371,13 +398,20 @@ func NewRouter(deps Dependencies) *gin.Engine {
 
 	// ---- audit trail (owner only via audit:read) ----
 	api.GET("/audit-logs", middleware.Auth(tokens), middleware.RequireTenant(),
-		middleware.RequirePermission(rbac.PermAuditRead), auditHandler.List)
+		requireActive, middleware.RequirePermission(rbac.PermAuditRead), auditHandler.List)
 
 	// ---- super-admin routes ----
 	adminGroup := api.Group("/admin", middleware.Auth(tokens), middleware.RequireSuperAdmin())
 	{
 		adminGroup.GET("/tenants", tenantHandler.AdminListTenants)
 		adminGroup.POST("/tenants", teamHandler.AdminCreateTenant)
+		adminGroup.GET("/subscriptions", billingHandler.AdminListSubscriptions)
+		adminGroup.POST("/subscriptions/:tenantId/mark-paid", billingHandler.AdminMarkPaid)
+		adminGroup.PATCH("/subscriptions/:tenantId/status", billingHandler.AdminSetSubscriptionStatus)
+		adminGroup.GET("/owners", billingHandler.AdminListOwners)
+		adminGroup.GET("/billing/stats", billingHandler.AdminBillingStats)
+		adminGroup.GET("/billing/settings", billingHandler.AdminGetPrices)
+		adminGroup.PUT("/billing/settings", billingHandler.AdminUpdatePrices)
 		adminGroup.PATCH("/tenants/:id/status", tenantHandler.AdminSetTenantStatus)
 		adminGroup.PATCH("/tenants/:id/plan", tenantHandler.AdminSetTenantPlan)
 		adminGroup.GET("/stats", tenantHandler.AdminStats)

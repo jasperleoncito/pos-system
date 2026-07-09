@@ -23,6 +23,7 @@ const (
 	PermTenantSettingsWrite Permission = "tenant_settings:write"
 	PermUsersManage         Permission = "users:manage"
 	PermSessionsManage      Permission = "sessions:manage"
+	PermBillingManage       Permission = "billing:manage"
 
 	PermCatalogRead  Permission = "catalog:read"
 	PermCatalogWrite Permission = "catalog:write"
@@ -85,7 +86,7 @@ var matrix = map[Role][]Permission{
 func allPermissions() []Permission {
 	return []Permission{
 		PermTenantSettingsRead, PermTenantSettingsWrite,
-		PermUsersManage, PermSessionsManage,
+		PermUsersManage, PermSessionsManage, PermBillingManage,
 		PermCatalogRead, PermCatalogWrite,
 		PermOrdersCreate, PermOrdersRead, PermOrdersRefund, PermOrdersVoid,
 		PermKitchenRead, PermKitchenWrite,

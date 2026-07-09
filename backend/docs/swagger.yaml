@@ -39,6 +39,16 @@ definitions:
     required:
     - name
     type: object
+  dto.CheckoutRequest:
+    properties:
+      plan:
+        enum:
+        - monthly
+        - yearly
+        type: string
+    required:
+    - plan
+    type: object
   dto.CloseDrawerRequest:
     properties:
       counted_cash:
@@ -373,6 +383,12 @@ definitions:
     - earn_rate
     - redeem_value
     type: object
+  dto.MarkPaidManualRequest:
+    properties:
+      note:
+        maxLength: 500
+        type: string
+    type: object
   dto.ModifierGroupRequest:
     properties:
       is_required:
@@ -651,12 +667,18 @@ definitions:
         maxLength: 72
         minLength: 8
         type: string
+      plan:
+        enum:
+        - monthly
+        - yearly
+        type: string
     required:
     - business_name
     - business_slug
     - email
     - full_name
     - password
+    - plan
     type: object
   dto.ResetPasswordRequest:
     properties:
@@ -694,6 +716,16 @@ definitions:
     required:
     - end_time
     - start_time
+    type: object
+  dto.SetSubscriptionStatusRequest:
+    properties:
+      status:
+        enum:
+        - active
+        - inactive
+        type: string
+    required:
+    - status
     type: object
   dto.SetTenantPlanRequest:
     properties:
@@ -792,6 +824,20 @@ definitions:
         type: string
     required:
     - role
+    type: object
+  dto.UpdatePlatformPricesRequest:
+    properties:
+      monthly_price:
+        description: centavos
+        minimum: 1
+        type: integer
+      yearly_price:
+        description: centavos
+        minimum: 1
+        type: integer
+    required:
+    - monthly_price
+    - yearly_price
     type: object
   dto.UpdateTenantSettingsRequest:
     properties:
@@ -907,6 +953,79 @@ info:
   title: POS System API
   version: "1.0"
 paths:
+  /admin/billing/settings:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Current platform prices (super admin)
+      tags:
+      - admin
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Prices in centavos
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdatePlatformPricesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Update subscription prices (super admin)
+      tags:
+      - admin
+  /admin/billing/stats:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Platform billing counters (super admin)
+      tags:
+      - admin
+  /admin/owners:
+    get:
+      parameters:
+      - description: Page (1-based)
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: All business owners and their businesses (super admin)
+      tags:
+      - admin
   /admin/stats:
     get:
       produces:
@@ -919,6 +1038,89 @@ paths:
       security:
       - BearerAuth: []
       summary: Platform-wide counters (super admin)
+      tags:
+      - admin
+  /admin/subscriptions:
+    get:
+      parameters:
+      - description: 'Filter: pending|active|inactive'
+        in: query
+        name: status
+        type: string
+      - description: Page (1-based)
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: All subscriptions with owner details (super admin)
+      tags:
+      - admin
+  /admin/subscriptions/{tenantId}/mark-paid:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: tenantId
+        required: true
+        type: string
+      - description: Optional note
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.MarkPaidManualRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Record a manual payment and extend the subscription (super admin)
+      tags:
+      - admin
+  /admin/subscriptions/{tenantId}/status:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: tenantId
+        required: true
+        type: string
+      - description: New status
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SetSubscriptionStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Force a subscription active or inactive (super admin)
       tags:
       - admin
   /admin/tenants:
@@ -1459,6 +1661,78 @@ paths:
       summary: Verify email using an emailed token
       tags:
       - auth
+  /billing/checkout:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Plan
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CheckoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create (or reuse) a Xendit invoice for the next period
+      tags:
+      - billing
+  /billing/payments:
+    get:
+      parameters:
+      - description: Page (1-based)
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: The active business's payment history (owner)
+      tags:
+      - billing
+  /billing/plans:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Current subscription prices (public — shown at registration)
+      tags:
+      - billing
+  /billing/subscription:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: The active business's subscription (any member)
+      tags:
+      - billing
   /cash-drawer/close:
     post:
       consumes:
@@ -3752,6 +4026,24 @@ paths:
       summary: Create a measurement unit
       tags:
       - inventory
+  /webhooks/xendit:
+    post:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.ErrorEnvelope'
+      summary: Xendit invoice callback (verified by x-callback-token)
+      tags:
+      - billing
 securityDefinitions:
   BearerAuth:
     in: header

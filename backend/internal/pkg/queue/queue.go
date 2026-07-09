@@ -16,6 +16,9 @@ const (
 	TaskLowStock        = "notify:low_stock"
 	TaskAttendanceAlert = "notify:attendance"
 	TaskDailySummary    = "notify:daily_summary"
+	// TaskBillingSweep fires hourly from the scheduler: 3-day renewal
+	// notices + past-due deactivation. No payload.
+	TaskBillingSweep = "billing:sweep"
 )
 
 type EmailPayload struct {

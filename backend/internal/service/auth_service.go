@@ -51,7 +51,12 @@ type AuthService struct {
 	logger      *slog.Logger
 	appBaseURL  string
 	appName     string
+	billing     SubscriptionCreator
 }
+
+// SetBilling wires the subscription provisioner (avoids a construction
+// cycle: BillingService is built after AuthService).
+func (s *AuthService) SetBilling(billing SubscriptionCreator) { s.billing = billing }
 
 type AuthServiceDeps struct {
 	Users       auth.UserRepository
@@ -93,7 +98,9 @@ type AuthResult struct {
 }
 
 // Register creates an owner account together with their first business.
-func (s *AuthService) Register(ctx context.Context, fullName, email, plainPassword, businessName, businessSlug string, meta RequestMeta) (*AuthResult, error) {
+// The subscription starts `pending` — the frontend immediately opens a
+// Xendit checkout; nothing works until the first invoice is paid.
+func (s *AuthService) Register(ctx context.Context, fullName, email, plainPassword, businessName, businessSlug, plan string, meta RequestMeta) (*AuthResult, error) {
 	hash, err := password.Hash(plainPassword)
 	if err != nil {
 		return nil, apperror.Internal(err)
@@ -131,6 +138,11 @@ func (s *AuthService) Register(ctx context.Context, fullName, email, plainPasswo
 	membership := &tenant.Membership{TenantID: t.ID, UserID: user.ID, Role: string(rbac.RoleOwner)}
 	if err := s.memberships.Create(ctx, membership); err != nil {
 		return nil, err
+	}
+	if s.billing != nil {
+		if err := s.billing.CreateInitialSubscription(ctx, t.ID, plan, "pending"); err != nil {
+			return nil, err
+		}
 	}
 
 	s.sendVerificationEmail(ctx, user)

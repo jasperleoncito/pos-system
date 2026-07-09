@@ -8,6 +8,7 @@ export type Permission =
   | "tenant_settings:read"
   | "tenant_settings:write"
   | "users:manage"
+  | "billing:manage"
   | "catalog:read"
   | "catalog:write"
   | "orders:create"
@@ -29,7 +30,7 @@ export type Permission =
   | "audit:read";
 
 const ALL: Permission[] = [
-  "tenant_settings:read", "tenant_settings:write", "users:manage",
+  "tenant_settings:read", "tenant_settings:write", "users:manage", "billing:manage",
   "catalog:read", "catalog:write",
   "orders:create", "orders:read", "orders:refund", "orders:void",
   "kitchen:read",

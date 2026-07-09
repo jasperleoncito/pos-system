@@ -2,17 +2,24 @@
 
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
 
 import { useAuth, useLogout } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+
+const ADMIN_NAV = [
+  { href: "/admin/tenants", label: "Businesses" },
+  { href: "/admin/billing", label: "Billing" },
+];
 
 /** Guarded shell for platform super-admin pages. */
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { auth, isReady } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
   const logout = useLogout();
@@ -45,6 +52,22 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </span>
           <span className="text-sm font-semibold">Platform Admin</span>
         </Link>
+        <nav aria-label="Admin sections" className="ml-4 flex items-center gap-1">
+          {ADMIN_NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm transition-colors",
+                pathname.startsWith(item.href)
+                  ? "bg-accent font-medium text-accent-foreground"
+                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+              )}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
         <div className="flex-1" />
         <Button
           variant="ghost"

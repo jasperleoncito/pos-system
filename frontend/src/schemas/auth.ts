@@ -19,6 +19,7 @@ export const registerSchema = z
       .min(2, "URL slug must be at least 2 characters")
       .max(60)
       .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and dashes"),
+    plan: z.enum(["monthly", "yearly"]),
   })
   .refine((data) => data.password === data.confirm_password, {
     message: "Passwords do not match",

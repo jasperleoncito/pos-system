@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ChevronRight, MonitorSmartphone, Palette, ScrollText, UsersRound } from "lucide-react";
+import { ChevronRight, CreditCard, MonitorSmartphone, Palette, ScrollText, UsersRound } from "lucide-react";
 
 import { useAuth } from "@/hooks/use-auth";
 import { can } from "@/lib/rbac";
@@ -25,6 +25,14 @@ export default function SettingsPage() {
       title: "Branding",
       description: "Logo, colors, and receipt details",
     },
+    ...(can(auth?.activeTenant?.role, "billing:manage")
+      ? [{
+          href: `/${params.tenant}/settings/billing`,
+          icon: CreditCard,
+          title: "Billing",
+          description: "Subscription plan, payments, and renewal",
+        }]
+      : []),
     ...(can(auth?.activeTenant?.role, "users:manage")
       ? [{
           href: `/${params.tenant}/settings/team`,

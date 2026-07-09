@@ -7,6 +7,7 @@ type RegisterRequest struct {
 	Password     string `json:"password" binding:"required,min=8,max=72"`
 	BusinessName string `json:"business_name" binding:"required,min=2,max=120"`
 	BusinessSlug string `json:"business_slug" binding:"required,min=2,max=60"`
+	Plan         string `json:"plan" binding:"required,oneof=monthly yearly"`
 }
 
 type LoginRequest struct {

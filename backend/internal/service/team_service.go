@@ -38,7 +38,12 @@ type TeamService struct {
 	logger      *slog.Logger
 	appBaseURL  string
 	appName     string
+	billing     SubscriptionCreator
 }
+
+// SetBilling wires the subscription provisioner (BillingService is
+// constructed after TeamService).
+func (s *TeamService) SetBilling(billing SubscriptionCreator) { s.billing = billing }
 
 type TeamServiceDeps struct {
 	Users       auth.UserRepository
@@ -247,6 +252,13 @@ func (s *TeamService) AdminCreateBusiness(ctx context.Context, actorID, business
 	membership := &tenant.Membership{TenantID: t.ID, UserID: user.ID, Role: string(rbac.RoleOwner)}
 	if err := s.memberships.Create(ctx, membership); err != nil {
 		return nil, err
+	}
+	// Admin-created businesses start on a comped active month; the owner
+	// enters the normal renewal cycle from there.
+	if s.billing != nil {
+		if err := s.billing.CreateInitialSubscription(ctx, t.ID, "monthly", "active"); err != nil {
+			return nil, err
+		}
 	}
 
 	if created {

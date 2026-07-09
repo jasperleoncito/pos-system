@@ -17,12 +17,13 @@ COPY . .
 RUN --mount=type=cache,target=/go-cache --mount=type=cache,target=/gomod-cache \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/api ./cmd/api && \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/worker ./cmd/worker && \
-    CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/seed ./cmd/seed
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/seed ./cmd/seed && \
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/sweep ./cmd/sweep
 
 # ---- prod: minimal runtime ----
 FROM gcr.io/distroless/base-debian12 AS prod
 WORKDIR /app
-COPY --from=build /out/api /out/worker /out/seed /app/
+COPY --from=build /out/api /out/worker /out/seed /out/sweep /app/
 COPY migrations /app/migrations
 EXPOSE 9137
 CMD ["/app/api"]

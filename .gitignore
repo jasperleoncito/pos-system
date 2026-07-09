@@ -6,6 +6,7 @@
 # Go
 backend/tmp/
 backend/vendor/
+backend/*.exe
 
 # Node / Next.js
 frontend/node_modules/

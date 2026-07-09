@@ -12,6 +12,7 @@ import (
 	"github.com/hibiken/asynq"
 
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/analytics"
+	"github.com/jasperleoncito/pos-system/backend/internal/domain/billing"
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/notification"
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/rbac"
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/tenant"
@@ -32,6 +33,7 @@ type Handlers struct {
 	Users         *postgres.UserRepo
 	Notifications notification.Repository
 	Analytics     analytics.Repository
+	Billing       billing.Repository
 	Mailer        EmailSender
 	AppName       string
 	AppURL        string
@@ -54,6 +56,7 @@ func (h *Handlers) Mux() *asynq.ServeMux {
 	mux.HandleFunc(queue.TaskLowStock, h.HandleLowStock)
 	mux.HandleFunc(queue.TaskAttendanceAlert, h.HandleAttendanceAlert)
 	mux.HandleFunc(queue.TaskDailySummary, h.HandleDailySummary)
+	mux.HandleFunc(queue.TaskBillingSweep, h.HandleBillingSweep)
 	return mux
 }
 

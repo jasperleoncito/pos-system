@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/auth"
+	"github.com/jasperleoncito/pos-system/backend/internal/domain/billing"
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/rbac"
 	"github.com/jasperleoncito/pos-system/backend/internal/domain/tenant"
 	"github.com/jasperleoncito/pos-system/backend/internal/pkg/apperror"
@@ -94,6 +95,15 @@ func Run(ctx context.Context, db *pgxpool.Pool, logger *slog.Logger) error {
 			return err
 		}
 		logger.Info("created tenant", "name", teresa.Name, "id", teresa.ID)
+	}
+
+	// Fresh databases run migrations (and their subscription backfill)
+	// BEFORE seeding, so the demo tenant needs its own idempotent
+	// enrollment: active monthly, due 30 days out.
+	if err := (postgres.NewBillingRepo(db)).CreateSubscription(ctx, &billing.Subscription{
+		TenantID: teresa.ID, Plan: billing.PlanMonthly, Status: billing.StatusActive,
+	}); err != nil {
+		return err
 	}
 
 	roleUsers := []struct {

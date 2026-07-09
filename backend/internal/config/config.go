@@ -17,6 +17,7 @@ type Config struct {
 	MinIO    MinIOConfig
 	JWT      JWTConfig
 	SMTP     SMTPConfig
+	Xendit   XenditConfig
 }
 
 type AppConfig struct {
@@ -74,6 +75,13 @@ type SMTPConfig struct {
 	FromName string
 }
 
+// XenditConfig holds the payment gateway credentials. WebhookToken is
+// compared against the x-callback-token header on invoice callbacks.
+type XenditConfig struct {
+	SecretKey    string
+	WebhookToken string
+}
+
 // Load reads configuration from environment variables and validates
 // that required secrets are present.
 func Load() (*Config, error) {
@@ -124,6 +132,10 @@ func Load() (*Config, error) {
 			From:     getEnv("SMTP_FROM", "noreply@pos.local"),
 			FromName: getEnv("SMTP_FROM_NAME", "POS System"),
 		},
+		Xendit: XenditConfig{
+			SecretKey:    getEnv("XENDIT_SECRET_KEY", ""),
+			WebhookToken: getEnv("XENDIT_WEBHOOK_TOKEN", ""),
+		},
 	}
 
 	// Emailed links need exactly one public URL; default to the first
@@ -151,6 +163,16 @@ func (c *Config) validate() error {
 	}
 	if c.MinIO.SecretKey == "" {
 		missing = append(missing, "MINIO_SECRET_KEY")
+	}
+	// Billing can stay unconfigured in dev (checkout fails cleanly), but
+	// production must never run without it.
+	if c.App.IsProduction() {
+		if c.Xendit.SecretKey == "" {
+			missing = append(missing, "XENDIT_SECRET_KEY")
+		}
+		if c.Xendit.WebhookToken == "" {
+			missing = append(missing, "XENDIT_WEBHOOK_TOKEN")
+		}
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required environment variables: %v", missing)
