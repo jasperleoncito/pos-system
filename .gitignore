@@ -2,6 +2,8 @@
 .env
 .env.local
 .env.production
+# Local secret/sample env notes — never commit
+env sample.md
 
 # Go
 backend/tmp/
