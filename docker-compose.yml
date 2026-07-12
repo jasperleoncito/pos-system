@@ -70,9 +70,18 @@ services:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: ${MINIO_BUCKET:-pos}
-    entrypoint: ["/bin/sh", "/init.sh"]
-    volumes:
-      - ./deploy/minio/init.sh:/init.sh:ro
+    # Bucket + public-read bootstrap, inlined so there's no host file to
+    # bind-mount (avoids SELinux exec denials on Portainer/Git deploys).
+    # $$ escapes the $ so the shell — not compose — expands these vars.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing "local/$$MINIO_BUCKET"
+        mc anonymous set download "local/$$MINIO_BUCKET"
+        echo "MinIO bucket '$$MINIO_BUCKET' ready"
     networks: [pos-network]
 
   backend:
