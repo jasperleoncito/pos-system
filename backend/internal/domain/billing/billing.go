@@ -74,6 +74,8 @@ type Payment struct {
 	PaidAt           *time.Time `json:"paid_at,omitempty"`
 	RecordedBy       *string    `json:"recorded_by,omitempty"`
 	Note             string     `json:"note"`
+	VoucherID        *string    `json:"voucher_id,omitempty"`
+	DiscountCentavos int64      `json:"discount_centavos"`
 	CreatedAt        time.Time  `json:"created_at"`
 }
 
@@ -132,6 +134,8 @@ type Repository interface {
 	// plan interval from GREATEST(now, current period end), resetting
 	// due_notice_sent_at. All date math happens in SQL.
 	Extend(ctx context.Context, tenantID, plan string) (*Subscription, error)
+	// ExtendMonths grants N calendar months (super-admin comp) and activates.
+	ExtendMonths(ctx context.Context, tenantID string, months int) (*Subscription, error)
 
 	CreatePayment(ctx context.Context, p *Payment) error
 	// MarkPaymentPaidIfPending flips a pending payment to paid and
@@ -161,4 +165,15 @@ type Repository interface {
 
 	GetPlatformSettings(ctx context.Context) (*PlatformSettings, error)
 	UpdatePlatformSettings(ctx context.Context, monthly, yearly int64) (*PlatformSettings, error)
+
+	// Vouchers (platform-level subscription discounts).
+	CreateVoucher(ctx context.Context, v *Voucher) error
+	ListVouchers(ctx context.Context, limit, offset int) ([]Voucher, int64, error)
+	// GetActiveVoucherByCode returns a live (active, not deleted) voucher by
+	// case-insensitive code, or (nil, nil) if none.
+	GetActiveVoucherByCode(ctx context.Context, code string) (*Voucher, error)
+	SetVoucherActive(ctx context.Context, id string, active bool) (*Voucher, error)
+	SoftDeleteVoucher(ctx context.Context, id string) error
+	// IncrementVoucherUse bumps used_count; called once on payment success.
+	IncrementVoucherUse(ctx context.Context, id string) error
 }

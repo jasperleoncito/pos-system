@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Loader2, Lock, LogOut, TriangleAlert, X } from "lucide-react";
+import { CheckCircle2, Loader2, Lock, LogOut, Ticket, TriangleAlert, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { useAuth, useLogout } from "@/hooks/use-auth";
-import { useCheckout, useSubscription } from "@/hooks/use-billing";
+import { useCheckout, usePreviewVoucher, useSubscription } from "@/hooks/use-billing";
 import { PlanCards } from "@/components/billing/plan-cards";
 import { formatCentavos } from "@/lib/currency";
 import { usePlans } from "@/hooks/use-billing";
-import type { BillingPlan, Subscription } from "@/types/billing";
+import type { BillingPlan, Subscription, VoucherPreview } from "@/types/billing";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -19,6 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const DUE_SOON_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -62,17 +64,42 @@ export function SubscriptionGate({ children }: { children: ReactNode }) {
 
 function PlanPayModal({ subscription }: { subscription: Subscription }) {
   const checkout = useCheckout();
+  const preview = usePreviewVoucher();
   const logout = useLogout();
   const [plan, setPlan] = useState<BillingPlan>(subscription.plan);
+  const [code, setCode] = useState("");
+  const [applied, setApplied] = useState<VoucherPreview | null>(null);
   const isPending = subscription.status === "pending";
 
-  const pay = () => {
-    checkout.mutate(plan, {
-      onSuccess: (result) => {
-        window.location.href = result.invoice_url;
+  // A voucher may be plan-restricted, so re-check when the plan changes.
+  useEffect(() => setApplied(null), [plan]);
+
+  const applyVoucher = () => {
+    if (!code.trim()) return;
+    preview.mutate(
+      { code: code.trim(), plan },
+      {
+        onSuccess: (p) => {
+          setApplied(p);
+          toast.success(
+            p.final_amount === 0
+              ? "Voucher applied — your subscription is free!"
+              : `Voucher applied — you save ${formatCentavos(p.discount)}`,
+          );
+        },
       },
-    });
+    );
   };
+
+  const pay = () => {
+    checkout.mutate(
+      { plan, voucher: applied ? code.trim() : undefined },
+      { onSuccess: (result) => (window.location.href = result.invoice_url) },
+    );
+  };
+
+  const free = applied?.final_amount === 0;
+  const busy = checkout.isPending || preview.isPending;
 
   return (
     <AlertDialog open>
@@ -88,21 +115,50 @@ function PlanPayModal({ subscription }: { subscription: Subscription }) {
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <PlanCards value={plan} onChange={setPlan} disabled={checkout.isPending} />
+        <PlanCards value={plan} onChange={setPlan} disabled={busy} />
 
-        <Button className="w-full" size="lg" onClick={pay} disabled={checkout.isPending}>
+        {/* Voucher */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Voucher code (optional)"
+              value={code}
+              disabled={busy}
+              onChange={(e) => {
+                setCode(e.target.value.toUpperCase());
+                if (applied) setApplied(null);
+              }}
+              onKeyDown={(e) => e.key === "Enter" && applyVoucher()}
+              aria-label="Voucher code"
+            />
+            <Button type="button" variant="outline" onClick={applyVoucher} disabled={busy || !code.trim()}>
+              {preview.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Ticket className="size-4" aria-hidden />}
+              Apply
+            </Button>
+          </div>
+          {applied && (
+            <p className="flex items-center gap-1.5 text-sm text-emerald-600">
+              <CheckCircle2 className="size-4" aria-hidden />
+              {free
+                ? "Fully covered — no payment needed."
+                : `−${formatCentavos(applied.discount)} · you pay ${formatCentavos(applied.final_amount)}`}
+            </p>
+          )}
+        </div>
+
+        <Button className="w-full" size="lg" onClick={pay} disabled={busy}>
           {checkout.isPending && <Loader2 className="size-4 animate-spin" aria-hidden />}
-          {isPending ? "Pay & activate" : "Pay & reactivate"}
+          {free ? "Activate for free" : isPending ? "Pay & activate" : "Pay & reactivate"}
         </Button>
         <p className="text-center text-xs text-muted-foreground">
-          You&apos;ll be redirected to a secure Xendit payment page.
+          {free ? "No payment page — activates instantly." : "You'll be redirected to a secure Xendit payment page."}
         </p>
         <Button
           variant="ghost"
           size="sm"
           className="mx-auto text-muted-foreground"
           onClick={() => logout()}
-          disabled={checkout.isPending}
+          disabled={busy}
         >
           <LogOut className="size-4" aria-hidden />
           Log out
@@ -164,11 +220,14 @@ function DueBanner({ subscription }: { subscription: Subscription }) {
         size="sm"
         disabled={checkout.isPending}
         onClick={() =>
-          checkout.mutate(subscription.plan, {
-            onSuccess: (result) => {
-              window.location.href = result.invoice_url;
+          checkout.mutate(
+            { plan: subscription.plan },
+            {
+              onSuccess: (result) => {
+                window.location.href = result.invoice_url;
+              },
             },
-          })
+          )
         }
       >
         {checkout.isPending && <Loader2 className="size-4 animate-spin" aria-hidden />}

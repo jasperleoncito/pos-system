@@ -77,10 +77,10 @@ export function CartPanel({
       {orderType === "dine_in" && (
         <div className="px-3 pb-2">
           <Input
-            placeholder="Table number"
+            placeholder="Table number (optional)"
             value={tableNumber}
             onChange={(e) => onTableNumberChange(e.target.value)}
-            aria-label="Table number"
+            aria-label="Table number (optional)"
           />
         </div>
       )}

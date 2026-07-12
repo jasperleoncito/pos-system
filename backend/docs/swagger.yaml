@@ -46,6 +46,9 @@ definitions:
         - monthly
         - yearly
         type: string
+      voucher:
+        maxLength: 40
+        type: string
     required:
     - plan
     type: object
@@ -146,6 +149,39 @@ definitions:
         type: array
     required:
     - amounts
+    type: object
+  dto.CreateVoucherRequest:
+    properties:
+      applies_to:
+        enum:
+        - all
+        - monthly
+        - yearly
+        type: string
+      code:
+        maxLength: 40
+        minLength: 3
+        type: string
+      discount_type:
+        enum:
+        - fixed
+        - percentage
+        type: string
+      discount_value:
+        description: centavos (fixed) | percent (percentage)
+        minimum: 1
+        type: integer
+      expires_at:
+        description: RFC3339, optional
+        type: string
+      max_uses:
+        minimum: 1
+        type: integer
+    required:
+    - applies_to
+    - code
+    - discount_type
+    - discount_value
     type: object
   dto.CustomerRequest:
     properties:
@@ -264,6 +300,15 @@ definitions:
         type: string
     required:
     - email
+    type: object
+  dto.GrantMonthsRequest:
+    properties:
+      months:
+        maximum: 6
+        minimum: 1
+        type: integer
+    required:
+    - months
     type: object
   dto.HoldOrderRequest:
     properties:
@@ -530,6 +575,20 @@ definitions:
     - amount
     - method
     type: object
+  dto.PreviewVoucherRequest:
+    properties:
+      code:
+        maxLength: 40
+        type: string
+      plan:
+        enum:
+        - monthly
+        - yearly
+        type: string
+    required:
+    - code
+    - plan
+    type: object
   dto.PriorityRequest:
     properties:
       priority:
@@ -747,6 +806,11 @@ definitions:
         type: string
     required:
     - status
+    type: object
+  dto.SetVoucherActiveRequest:
+    properties:
+      active:
+        type: boolean
     type: object
   dto.SupplierRequest:
     properties:
@@ -1067,6 +1131,34 @@ paths:
       summary: All subscriptions with owner details (super admin)
       tags:
       - admin
+  /admin/subscriptions/{tenantId}/grant:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: tenantId
+        required: true
+        type: string
+      - description: Months to grant
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.GrantMonthsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Grant a subscription 1-6 free months (super admin)
+      tags:
+      - admin
   /admin/subscriptions/{tenantId}/mark-paid:
     post:
       consumes:
@@ -1226,6 +1318,90 @@ paths:
       security:
       - BearerAuth: []
       summary: Activate or suspend a tenant (super admin)
+      tags:
+      - admin
+  /admin/vouchers:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: List subscription vouchers (super admin)
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Voucher
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateVoucherRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Create a subscription voucher (super admin)
+      tags:
+      - admin
+  /admin/vouchers/{id}:
+    delete:
+      parameters:
+      - description: Voucher ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Delete a voucher (super admin)
+      tags:
+      - admin
+  /admin/vouchers/{id}/active:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Voucher ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Active flag
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SetVoucherActiveRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Activate or deactivate a voucher (super admin)
       tags:
       - admin
   /analytics/dashboard:
@@ -1747,6 +1923,29 @@ paths:
       security:
       - BearerAuth: []
       summary: The active business's subscription (any member)
+      tags:
+      - billing
+  /billing/voucher/preview:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Code + plan
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PreviewVoucherRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Validate a voucher code and preview the discounted price (owner)
       tags:
       - billing
   /cash-drawer/close:

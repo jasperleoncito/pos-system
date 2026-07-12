@@ -43,11 +43,14 @@ export default function BillingPage() {
   const pageCount = Math.max(1, Math.ceil(total / limit));
 
   const pay = () => {
-    checkout.mutate(selectedPlan, {
-      onSuccess: (result) => {
-        window.location.href = result.invoice_url;
+    checkout.mutate(
+      { plan: selectedPlan },
+      {
+        onSuccess: (result) => {
+          window.location.href = result.invoice_url;
+        },
       },
-    });
+    );
   };
 
   return (

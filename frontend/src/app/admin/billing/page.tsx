@@ -1,19 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BadgeCheck, Loader2, PhilippinePeso, Power, ReceiptText, UserRound } from "lucide-react";
+import { BadgeCheck, Loader2, PhilippinePeso, Plus, Power, ReceiptText, Ticket, Trash2 } from "lucide-react";
 
 import {
   useAdminBillingSettings,
   useAdminBillingStats,
-  useAdminMarkPaid,
-  useAdminOwners,
-  useAdminSetSubscriptionStatus,
-  useAdminSubscriptions,
+  useAdminCreateVoucher,
+  useAdminDeleteVoucher,
+  useAdminSetVoucherActive,
   useAdminUpdatePrices,
+  useAdminVouchers,
+  type CreateVoucherInput,
 } from "@/hooks/use-billing";
 import { formatCentavos } from "@/lib/currency";
-import type { AdminSubscription } from "@/types/billing";
+import type { Voucher, VoucherDiscountType, VoucherScope } from "@/types/billing";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,159 +47,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-
-const STATUS_BADGE: Record<string, string> = {
-  active: "bg-emerald-600 text-white",
-  pending: "bg-amber-500 text-white",
-  inactive: "bg-destructive text-white",
-};
 
 function fmtDate(value?: string | null) {
   if (!value) return "—";
   return new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
-
-/** Days until due, for urgency coloring. */
-function dueTone(periodEnd: string, status: string): string {
-  if (status !== "active") return "text-muted-foreground";
-  const days = (new Date(periodEnd).getTime() - Date.now()) / 86_400_000;
-  if (days < 0) return "text-destructive font-medium";
-  if (days <= 3) return "text-amber-600 font-medium";
-  return "";
-}
-
-function Pager({ page, setPage, total, limit }: { page: number; setPage: (fn: (p: number) => number) => void; total: number; limit: number }) {
-  const pageCount = Math.max(1, Math.ceil(total / limit));
-  if (pageCount <= 1) return null;
-  return (
-    <div className="flex items-center justify-between pt-2">
-      <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-        Previous
-      </Button>
-      <span className="text-sm text-muted-foreground">Page {page} of {pageCount}</span>
-      <Button variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage((p) => p + 1)}>
-        Next
-      </Button>
-    </div>
-  );
-}
-
-function MarkPaidDialog({ sub, open, onOpenChange }: { sub: AdminSubscription | null; open: boolean; onOpenChange: (o: boolean) => void }) {
-  const markPaid = useAdminMarkPaid();
-  const [note, setNote] = useState("");
-
-  useEffect(() => {
-    if (open) setNote("");
-  }, [open]);
-
-  if (!sub) return null;
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Record a payment for {sub.tenant_name}</DialogTitle>
-          <DialogDescription>
-            Extends the {sub.plan} subscription by one period from{" "}
-            {fmtDate(sub.current_period_end)} (or from today if already past due) — exactly like a
-            Xendit payment. Use for bank transfers or comps.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor="mp-note">Note (optional)</Label>
-          <Textarea
-            id="mp-note"
-            rows={2}
-            placeholder="e.g. Paid via bank transfer, ref #12345"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button
-            disabled={markPaid.isPending}
-            onClick={() =>
-              markPaid.mutate(
-                { tenantId: sub.tenant_id, note: note.trim() },
-                { onSuccess: () => onOpenChange(false) },
-              )
-            }
-          >
-            {markPaid.isPending && <Loader2 className="size-4 animate-spin" aria-hidden />}
-            Record payment
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function SubscriptionRow({ sub, onMarkPaid }: { sub: AdminSubscription; onMarkPaid: (s: AdminSubscription) => void }) {
-  const setStatus = useAdminSetSubscriptionStatus();
-  const isActive = sub.status === "active";
-  const nextStatus = isActive ? "inactive" : "active";
-
-  return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-2 text-sm font-medium">
-          <span className="truncate">{sub.tenant_name}</span>
-          <Badge className={STATUS_BADGE[sub.status]}>{sub.status}</Badge>
-          <Badge variant="outline" className="capitalize">{sub.plan}</Badge>
-        </p>
-        <p className="truncate text-xs text-muted-foreground">
-          <UserRound className="mr-1 inline size-3" aria-hidden />
-          {sub.owner_name || "—"} · {sub.owner_email || "no owner"} · /{sub.tenant_slug}
-        </p>
-        <p className="text-xs">
-          <span className={dueTone(sub.current_period_end, sub.status)}>
-            {sub.status === "pending" ? "never paid" : `due ${fmtDate(sub.current_period_end)}`}
-          </span>
-          <span className="text-muted-foreground">
-            {" · last paid "}
-            {sub.last_paid_at ? `${fmtDate(sub.last_paid_at)} (${formatCentavos(sub.last_paid_amount ?? 0)})` : "never"}
-          </span>
-        </p>
-      </div>
-
-      <div className="flex items-center gap-1">
-        <Button variant="outline" size="sm" onClick={() => onMarkPaid(sub)}>
-          <BadgeCheck className="size-4" aria-hidden />
-          Mark paid
-        </Button>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="ghost" size="sm" disabled={setStatus.isPending}>
-              <Power className="size-4" aria-hidden />
-              {isActive ? "Deactivate" : "Reactivate"}
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                {isActive ? "Deactivate" : "Reactivate"} {sub.tenant_name}?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {isActive
-                  ? "Members will be locked out until payment or reactivation. This does not change the due date."
-                  : "The business regains access immediately without a payment. The due date stays as-is, so the hourly sweep may deactivate it again if it's still past due."}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => setStatus.mutate({ tenantId: sub.tenant_id, status: nextStatus })}
-              >
-                {isActive ? "Deactivate" : "Reactivate"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-    </div>
-  );
 }
 
 function PricesCard() {
@@ -217,43 +71,22 @@ function PricesCard() {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Plan prices</CardTitle>
-        <CardDescription>
-          Applied to every new invoice and renewal notice platform-wide. In pesos.
-        </CardDescription>
+        <CardDescription>Applied to every new invoice and renewal notice platform-wide. In pesos.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="price-monthly">Monthly (PHP)</Label>
-            <Input
-              id="price-monthly"
-              type="number"
-              min="1"
-              step="0.01"
-              value={monthly}
-              onChange={(e) => setMonthly(e.target.value)}
-            />
+            <Input id="price-monthly" type="number" min="1" step="0.01" value={monthly} onChange={(e) => setMonthly(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="price-yearly">Yearly (PHP)</Label>
-            <Input
-              id="price-yearly"
-              type="number"
-              min="1"
-              step="0.01"
-              value={yearly}
-              onChange={(e) => setYearly(e.target.value)}
-            />
+            <Input id="price-yearly" type="number" min="1" step="0.01" value={yearly} onChange={(e) => setYearly(e.target.value)} />
           </div>
         </div>
         <Button
           disabled={update.isPending || !monthly || !yearly}
-          onClick={() =>
-            update.mutate({
-              monthly_price: Math.round(Number(monthly) * 100),
-              yearly_price: Math.round(Number(yearly) * 100),
-            })
-          }
+          onClick={() => update.mutate({ monthly_price: Math.round(Number(monthly) * 100), yearly_price: Math.round(Number(yearly) * 100) })}
         >
           {update.isPending && <Loader2 className="size-4 animate-spin" aria-hidden />}
           Save prices
@@ -263,51 +96,186 @@ function PricesCard() {
   );
 }
 
-function OwnersTab() {
+function CreateVoucherDialog() {
+  const create = useAdminCreateVoucher();
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const [type, setType] = useState<VoucherDiscountType>("percentage");
+  const [value, setValue] = useState("");
+  const [scope, setScope] = useState<VoucherScope>("all");
+  const [maxUses, setMaxUses] = useState("");
+  const [expires, setExpires] = useState("");
+
+  const reset = () => {
+    setCode("");
+    setType("percentage");
+    setValue("");
+    setScope("all");
+    setMaxUses("");
+    setExpires("");
+  };
+
+  const submit = () => {
+    const input: CreateVoucherInput = {
+      code: code.trim(),
+      discount_type: type,
+      // fixed = pesos → centavos; percentage = whole percent
+      discount_value: type === "fixed" ? Math.round(Number(value) * 100) : Math.round(Number(value)),
+      applies_to: scope,
+      max_uses: maxUses ? Number(maxUses) : null,
+      expires_at: expires ? new Date(`${expires}T23:59:59`).toISOString() : null,
+    };
+    create.mutate(input, {
+      onSuccess: () => {
+        setOpen(false);
+        reset();
+      },
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button onClick={() => setOpen(true)}>
+        <Plus className="size-4" aria-hidden />
+        New voucher
+      </Button>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create a voucher</DialogTitle>
+          <DialogDescription>Owners enter the code when paying their subscription.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="v-code">Code</Label>
+            <Input id="v-code" placeholder="LAUNCH50" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Discount type</Label>
+              <Select value={type} onValueChange={(v) => setType(v as VoucherDiscountType)}>
+                <SelectTrigger aria-label="Discount type"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">Percentage (%)</SelectItem>
+                  <SelectItem value="fixed">Fixed (₱)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="v-value">{type === "fixed" ? "Amount (PHP)" : "Percent off"}</Label>
+              <Input id="v-value" type="number" min="1" max={type === "percentage" ? "100" : undefined} step={type === "fixed" ? "0.01" : "1"} value={value} onChange={(e) => setValue(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Applies to</Label>
+            <Select value={scope} onValueChange={(v) => setScope(v as VoucherScope)}>
+              <SelectTrigger aria-label="Applies to"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All plans</SelectItem>
+                <SelectItem value="monthly">Monthly only</SelectItem>
+                <SelectItem value="yearly">Yearly only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="v-max">Max uses (optional)</Label>
+              <Input id="v-max" type="number" min="1" placeholder="unlimited" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="v-exp">Expires (optional)</Label>
+              <Input id="v-exp" type="date" value={expires} onChange={(e) => setExpires(e.target.value)} />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={submit} disabled={create.isPending || !code.trim() || !value}>
+            {create.isPending && <Loader2 className="size-4 animate-spin" aria-hidden />}
+            Create voucher
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function VoucherRow({ v }: { v: Voucher }) {
+  const setActive = useAdminSetVoucherActive();
+  const del = useAdminDeleteVoucher();
+  const discount = v.discount_type === "fixed" ? `${formatCentavos(v.discount_value)} off` : `${v.discount_value}% off`;
+  const uses = v.max_uses ? `${v.used_count}/${v.max_uses} used` : `${v.used_count} used`;
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+          <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-semibold">{v.code}</code>
+          <Badge variant="outline">{discount}</Badge>
+          <Badge variant="outline" className="capitalize">{v.applies_to === "all" ? "all plans" : `${v.applies_to} only`}</Badge>
+          {!v.active && <Badge variant="destructive">inactive</Badge>}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {uses}
+          {v.expires_at ? ` · expires ${fmtDate(v.expires_at)}` : " · no expiry"}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <Switch checked={v.active} disabled={setActive.isPending} onCheckedChange={(active) => setActive.mutate({ id: v.id, active })} aria-label="Active" />
+          <span className="text-xs text-muted-foreground">{v.active ? "on" : "off"}</span>
+        </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label="Delete voucher" disabled={del.isPending}>
+              <Trash2 className="size-4 text-destructive" aria-hidden />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete voucher {v.code}?</AlertDialogTitle>
+              <AlertDialogDescription>It can no longer be redeemed. Existing paid subscriptions are unaffected.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => del.mutate(v.id)}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </div>
+  );
+}
+
+function VouchersTab() {
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useAdminOwners(page);
+  const { data, isLoading } = useAdminVouchers(page);
   const total = data?.meta?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / (data?.meta?.limit ?? 20)));
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Owners</CardTitle>
-        <CardDescription>{total} owner{total === 1 ? "" : "s"} across the platform</CardDescription>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle className="text-base">Vouchers</CardTitle>
+          <CardDescription>Subscription discount codes · {total} total</CardDescription>
+        </div>
+        <CreateVoucherDialog />
       </CardHeader>
       <CardContent className="space-y-3">
         {isLoading && Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-16 w-full" />)}
-
-        {data?.owners.map((o) => (
-          <div key={o.user_id} className="rounded-lg border p-3">
-            <p className="flex items-center gap-2 text-sm font-medium">
-              {o.full_name}
-              {o.user_status !== "active" && <Badge variant="destructive">disabled</Badge>}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {o.email} · joined {fmtDate(o.created_at)}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {o.businesses.map((b) => (
-                <span key={b.tenant_id} className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs">
-                  {b.name}
-                  {b.sub_status && (
-                    <Badge className={`${STATUS_BADGE[b.sub_status] ?? ""} px-1.5 py-0 text-[10px]`}>
-                      {b.sub_status}
-                    </Badge>
-                  )}
-                  {b.sub_status === "active" && (
-                    <span className="text-muted-foreground">due {fmtDate(b.period_end)}</span>
-                  )}
-                </span>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {data && data.owners.length === 0 && (
-          <p className="py-6 text-center text-sm text-muted-foreground">No owners yet.</p>
+        {data?.vouchers.map((v) => <VoucherRow key={v.id} v={v} />)}
+        {data && data.vouchers.length === 0 && (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No vouchers yet. Create one to give owners a discount on monthly or yearly plans.
+          </p>
         )}
-        <Pager page={page} setPage={(fn) => setPage(fn)} total={total} limit={data?.meta?.limit ?? 20} />
+        {pageCount > 1 && (
+          <div className="flex items-center justify-between pt-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
+            <span className="text-sm text-muted-foreground">Page {page} of {pageCount}</span>
+            <Button variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage((p) => p + 1)}>Next</Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -315,18 +283,12 @@ function OwnersTab() {
 
 export default function AdminBillingPage() {
   const { data: stats } = useAdminBillingStats();
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const { data, isLoading } = useAdminSubscriptions(page, statusFilter === "all" ? "" : statusFilter);
-  const [markPaidTarget, setMarkPaidTarget] = useState<AdminSubscription | null>(null);
-
-  const total = data?.meta?.total ?? 0;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight">Billing</h1>
-        <p className="text-muted-foreground">Subscriptions, owners, and plan pricing</p>
+        <p className="text-muted-foreground">Plan pricing and discount vouchers</p>
       </header>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -348,70 +310,21 @@ export default function AdminBillingPage() {
         ))}
       </div>
 
-      <Tabs defaultValue="subscriptions">
+      <Tabs defaultValue="vouchers">
         <TabsList>
-          <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
-          <TabsTrigger value="owners">Owners</TabsTrigger>
+          <TabsTrigger value="vouchers">
+            <Ticket className="mr-1.5 size-4" aria-hidden />
+            Vouchers
+          </TabsTrigger>
           <TabsTrigger value="prices">Prices</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="subscriptions" className="mt-4">
-          <Card>
-            <CardHeader className="flex-row items-center justify-between space-y-0">
-              <div>
-                <CardTitle className="text-base">Subscriptions</CardTitle>
-                <CardDescription>{total} total — soonest due first</CardDescription>
-              </div>
-              <Select
-                value={statusFilter}
-                onValueChange={(v) => {
-                  setStatusFilter(v);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className="w-[160px]" aria-label="Filter by status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="pending">Awaiting payment</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {isLoading &&
-                Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-20 w-full" />)}
-
-              {data?.subscriptions.map((s) => (
-                <SubscriptionRow key={s.id} sub={s} onMarkPaid={setMarkPaidTarget} />
-              ))}
-
-              {data && data.subscriptions.length === 0 && (
-                <p className="py-6 text-center text-sm text-muted-foreground">
-                  No subscriptions match this filter.
-                </p>
-              )}
-              <Pager page={page} setPage={(fn) => setPage(fn)} total={total} limit={data?.meta?.limit ?? 20} />
-            </CardContent>
-          </Card>
+        <TabsContent value="vouchers" className="mt-4">
+          <VouchersTab />
         </TabsContent>
-
-        <TabsContent value="owners" className="mt-4">
-          <OwnersTab />
-        </TabsContent>
-
         <TabsContent value="prices" className="mt-4">
           <PricesCard />
         </TabsContent>
       </Tabs>
-
-      <MarkPaidDialog
-        sub={markPaidTarget}
-        open={Boolean(markPaidTarget)}
-        onOpenChange={(open) => !open && setMarkPaidTarget(null)}
-      />
     </div>
   );
 }

@@ -14,6 +14,9 @@ import type {
   PlatformPlans,
   Subscription,
   SubscriptionPayment,
+  Voucher,
+  VoucherPreview,
+  VoucherScope,
 } from "@/types/billing";
 
 /** Public price sheet — used by the register page before any login. */
@@ -73,11 +76,24 @@ export function useReconcilePayment(enabled: boolean, intervalMs = 3_000) {
 /** Creates (or reuses) a Xendit invoice; caller redirects to invoice_url. */
 export function useCheckout() {
   return useMutation({
-    mutationFn: async (plan: BillingPlan) => {
-      const res = await api.post<ApiEnvelope<CheckoutResult>>("/billing/checkout", { plan });
+    mutationFn: async (input: { plan: BillingPlan; voucher?: string }) => {
+      const res = await api.post<ApiEnvelope<CheckoutResult>>("/billing/checkout", {
+        plan: input.plan,
+        voucher: input.voucher?.trim() || undefined,
+      });
       return res.data.data;
     },
     onError: (error) => toast.error(getApiErrorMessage(error)),
+  });
+}
+
+/** Validates a voucher code + plan and returns the discounted pricing. */
+export function usePreviewVoucher() {
+  return useMutation({
+    mutationFn: async (input: { code: string; plan: BillingPlan }) => {
+      const res = await api.post<ApiEnvelope<VoucherPreview>>("/billing/voucher/preview", input);
+      return res.data.data;
+    },
   });
 }
 
@@ -160,6 +176,86 @@ export function useAdminMarkPaid() {
     onSuccess: () => {
       toast.success("Payment recorded — subscription extended");
       invalidateAdminBilling(queryClient);
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error)),
+  });
+}
+
+export function useAdminGrantMonths() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ tenantId, months }: { tenantId: string; months: number }) => {
+      const res = await api.post<ApiEnvelope<Subscription>>(
+        `/admin/subscriptions/${tenantId}/grant`,
+        { months },
+      );
+      return res.data.data;
+    },
+    onSuccess: (_sub, { months }) => {
+      toast.success(`Granted ${months} month${months === 1 ? "" : "s"}`);
+      invalidateAdminBilling(queryClient);
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error)),
+  });
+}
+
+export function useAdminVouchers(page: number) {
+  return useQuery({
+    queryKey: ["admin", "vouchers", page],
+    queryFn: async () => {
+      const res = await api.get<ApiEnvelope<Voucher[]>>("/admin/vouchers", {
+        params: { page, limit: 20 },
+      });
+      return { vouchers: res.data.data ?? [], meta: res.data.meta };
+    },
+  });
+}
+
+export interface CreateVoucherInput {
+  code: string;
+  discount_type: "fixed" | "percentage";
+  discount_value: number;
+  applies_to: VoucherScope;
+  max_uses?: number | null;
+  expires_at?: string | null;
+}
+
+export function useAdminCreateVoucher() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateVoucherInput) => {
+      const res = await api.post<ApiEnvelope<Voucher>>("/admin/vouchers", input);
+      return res.data.data;
+    },
+    onSuccess: () => {
+      toast.success("Voucher created");
+      queryClient.invalidateQueries({ queryKey: ["admin", "vouchers"] });
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error)),
+  });
+}
+
+export function useAdminSetVoucherActive() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      const res = await api.patch<ApiEnvelope<Voucher>>(`/admin/vouchers/${id}/active`, { active });
+      return res.data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "vouchers"] }),
+    onError: (error) => toast.error(getApiErrorMessage(error)),
+  });
+}
+
+export function useAdminDeleteVoucher() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/admin/vouchers/${id}`);
+    },
+    onSuccess: () => {
+      toast.success("Voucher deleted");
+      queryClient.invalidateQueries({ queryKey: ["admin", "vouchers"] });
     },
     onError: (error) => toast.error(getApiErrorMessage(error)),
   });

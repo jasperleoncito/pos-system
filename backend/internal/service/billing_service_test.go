@@ -21,6 +21,7 @@ import (
 type fakeBillingRepo struct {
 	subs     map[string]*billing.Subscription // by tenant id
 	payments map[string]*billing.Payment      // by external id
+	vouchers map[string]*billing.Voucher      // by id
 	settings billing.PlatformSettings
 	nextID   int
 	extends  int // how many times Extend ran
@@ -30,8 +31,66 @@ func newFakeBillingRepo() *fakeBillingRepo {
 	return &fakeBillingRepo{
 		subs:     map[string]*billing.Subscription{},
 		payments: map[string]*billing.Payment{},
+		vouchers: map[string]*billing.Voucher{},
 		settings: billing.PlatformSettings{MonthlyPrice: 80000, YearlyPrice: 800000},
 	}
+}
+
+func (r *fakeBillingRepo) CreateVoucher(_ context.Context, v *billing.Voucher) error {
+	for _, existing := range r.vouchers {
+		if strings.EqualFold(existing.Code, v.Code) {
+			return apperror.Conflict("a voucher with that code already exists")
+		}
+	}
+	v.ID = r.id("vch")
+	now := time.Now()
+	v.CreatedAt, v.UpdatedAt = now, now
+	copied := *v
+	r.vouchers[v.ID] = &copied
+	return nil
+}
+
+func (r *fakeBillingRepo) ListVouchers(_ context.Context, _, _ int) ([]billing.Voucher, int64, error) {
+	var out []billing.Voucher
+	for _, v := range r.vouchers {
+		out = append(out, *v)
+	}
+	return out, int64(len(out)), nil
+}
+
+func (r *fakeBillingRepo) GetActiveVoucherByCode(_ context.Context, code string) (*billing.Voucher, error) {
+	for _, v := range r.vouchers {
+		if strings.EqualFold(v.Code, code) && v.Active {
+			copied := *v
+			return &copied, nil
+		}
+	}
+	return nil, nil
+}
+
+func (r *fakeBillingRepo) SetVoucherActive(_ context.Context, id string, active bool) (*billing.Voucher, error) {
+	v, ok := r.vouchers[id]
+	if !ok {
+		return nil, apperror.NotFound("voucher")
+	}
+	v.Active = active
+	copied := *v
+	return &copied, nil
+}
+
+func (r *fakeBillingRepo) SoftDeleteVoucher(_ context.Context, id string) error {
+	if _, ok := r.vouchers[id]; !ok {
+		return apperror.NotFound("voucher")
+	}
+	delete(r.vouchers, id)
+	return nil
+}
+
+func (r *fakeBillingRepo) IncrementVoucherUse(_ context.Context, id string) error {
+	if v, ok := r.vouchers[id]; ok {
+		v.UsedCount++
+	}
+	return nil
 }
 
 func (r *fakeBillingRepo) id(prefix string) string {
@@ -90,6 +149,22 @@ func (r *fakeBillingRepo) Extend(_ context.Context, tenantID, plan string) (*bil
 		s.CurrentPeriodEnd = base.AddDate(1, 0, 0)
 	}
 	s.Plan = plan
+	s.Status = billing.StatusActive
+	s.DueNoticeSentAt = nil
+	copied := *s
+	return &copied, nil
+}
+
+func (r *fakeBillingRepo) ExtendMonths(_ context.Context, tenantID string, months int) (*billing.Subscription, error) {
+	s, ok := r.subs[tenantID]
+	if !ok {
+		return nil, apperror.NotFound("subscription")
+	}
+	base := s.CurrentPeriodEnd
+	if now := time.Now(); base.Before(now) {
+		base = now
+	}
+	s.CurrentPeriodEnd = base.AddDate(0, months, 0)
 	s.Status = billing.StatusActive
 	s.DueNoticeSentAt = nil
 	copied := *s
@@ -291,7 +366,7 @@ func TestCreateCheckoutCreatesThenReusesPendingInvoice(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedSubscription(t, billing.StatusPending)
 
-	first, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly")
+	first, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly", "")
 	if err != nil {
 		t.Fatalf("first checkout: %v", err)
 	}
@@ -302,7 +377,7 @@ func TestCreateCheckoutCreatesThenReusesPendingInvoice(t *testing.T) {
 		t.Error("expected an invoice URL")
 	}
 
-	second, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly")
+	second, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly", "")
 	if err != nil {
 		t.Fatalf("second checkout: %v", err)
 	}
@@ -314,7 +389,7 @@ func TestCreateCheckoutCreatesThenReusesPendingInvoice(t *testing.T) {
 	}
 
 	// A different plan mints a fresh invoice.
-	if _, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "yearly"); err != nil {
+	if _, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "yearly", ""); err != nil {
 		t.Fatalf("yearly checkout: %v", err)
 	}
 	if f.invoices.created != 2 {
@@ -326,7 +401,7 @@ func TestCreateCheckoutRepricesStalePendingInvoice(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedSubscription(t, billing.StatusPending)
 
-	first, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly")
+	first, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly", "")
 	if err != nil {
 		t.Fatalf("first checkout: %v", err)
 	}
@@ -334,7 +409,7 @@ func TestCreateCheckoutRepricesStalePendingInvoice(t *testing.T) {
 	if _, err := f.repo.UpdatePlatformSettings(context.Background(), 2000, 50000); err != nil {
 		t.Fatalf("update prices: %v", err)
 	}
-	second, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly")
+	second, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly", "")
 	if err != nil {
 		t.Fatalf("second checkout: %v", err)
 	}
@@ -349,10 +424,101 @@ func TestCreateCheckoutRepricesStalePendingInvoice(t *testing.T) {
 	}
 }
 
+func TestGrantMonthsExtendsAndActivates(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedSubscription(t, billing.StatusPending)
+
+	sub, err := f.svc.GrantMonths(context.Background(), "admin-1", "tenant-1", 3)
+	if err != nil {
+		t.Fatalf("grant: %v", err)
+	}
+	if sub.Status != billing.StatusActive {
+		t.Errorf("status = %q, want active", sub.Status)
+	}
+	if wantMin := time.Now().AddDate(0, 2, 25); sub.CurrentPeriodEnd.Before(wantMin) {
+		t.Errorf("period end %v is not ~3 months out", sub.CurrentPeriodEnd)
+	}
+
+	payments, _, _ := f.repo.ListPaymentsByTenant(context.Background(), "tenant-1", 10, 0)
+	var granted bool
+	for _, p := range payments {
+		if p.Method == "grant" && p.Amount == 0 && p.Status == billing.PaymentPaid {
+			granted = true
+		}
+	}
+	if !granted {
+		t.Error("expected a zero-amount grant entry in the ledger")
+	}
+
+	if _, err := f.svc.GrantMonths(context.Background(), "admin-1", "tenant-1", 7); err == nil {
+		t.Error("7 months should be rejected")
+	}
+	if _, err := f.svc.GrantMonths(context.Background(), "admin-1", "tenant-1", 0); err == nil {
+		t.Error("0 months should be rejected")
+	}
+}
+
+func TestCheckoutAppliesPercentageVoucher(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedSubscription(t, billing.StatusPending)
+	if _, err := f.svc.CreateVoucher(context.Background(), "admin-1", VoucherInput{
+		Code: "half", DiscountType: billing.DiscountPercentage, DiscountValue: 50, AppliesTo: billing.VoucherAppliesAll,
+	}); err != nil {
+		t.Fatalf("create voucher: %v", err)
+	}
+	res, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly", "HALF")
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	if res.Amount != 40000 || res.Discount != 40000 {
+		t.Errorf("amount=%d discount=%d, want 40000/40000 (50%% of 80000)", res.Amount, res.Discount)
+	}
+}
+
+func TestFullVoucherActivatesFree(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedSubscription(t, billing.StatusPending)
+	if _, err := f.svc.CreateVoucher(context.Background(), "admin-1", VoucherInput{
+		Code: "freebie", DiscountType: billing.DiscountPercentage, DiscountValue: 100, AppliesTo: billing.VoucherAppliesAll,
+	}); err != nil {
+		t.Fatalf("create voucher: %v", err)
+	}
+	res, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly", "FREEBIE")
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	if !res.Free || res.Amount != 0 {
+		t.Errorf("expected free activation, got free=%v amount=%d", res.Free, res.Amount)
+	}
+	if sub, _ := f.svc.Subscription(context.Background(), "tenant-1"); sub.Status != billing.StatusActive {
+		t.Errorf("status=%q, want active after a full voucher", sub.Status)
+	}
+	vouchers, _, _ := f.svc.ListVouchers(context.Background(), 10, 0)
+	if len(vouchers) != 1 || vouchers[0].UsedCount != 1 {
+		t.Errorf("expected the voucher's used_count to be 1, got %+v", vouchers)
+	}
+}
+
+func TestVoucherRejectedForWrongPlanOrUnknownCode(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedSubscription(t, billing.StatusPending)
+	if _, err := f.svc.CreateVoucher(context.Background(), "admin-1", VoucherInput{
+		Code: "yearonly", DiscountType: billing.DiscountFixed, DiscountValue: 10000, AppliesTo: billing.PlanYearly,
+	}); err != nil {
+		t.Fatalf("create voucher: %v", err)
+	}
+	if _, err := f.svc.PreviewVoucher(context.Background(), "YEARONLY", "monthly"); err == nil {
+		t.Error("a yearly-only voucher should be rejected for the monthly plan")
+	}
+	if _, err := f.svc.PreviewVoucher(context.Background(), "NOPE", "monthly"); err == nil {
+		t.Error("an unknown voucher code should be rejected")
+	}
+}
+
 func TestReconcileActivatesWhenXenditReportsPaid(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedSubscription(t, billing.StatusPending)
-	if _, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly"); err != nil {
+	if _, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly", ""); err != nil {
 		t.Fatalf("checkout: %v", err)
 	}
 
@@ -389,11 +555,11 @@ func TestCreateCheckoutRejectsBadPlanAndUnconfiguredGateway(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedSubscription(t, billing.StatusPending)
 
-	if _, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "weekly"); err == nil {
+	if _, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "weekly", ""); err == nil {
 		t.Error("invalid plan should be rejected")
 	}
 	f.invoices.configured = false
-	if _, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly"); err == nil {
+	if _, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly", ""); err == nil {
 		t.Error("unconfigured gateway should fail cleanly")
 	}
 }
@@ -401,7 +567,7 @@ func TestCreateCheckoutRejectsBadPlanAndUnconfiguredGateway(t *testing.T) {
 func TestWebhookPaidExtendsOnceAndIsIdempotent(t *testing.T) {
 	f := newBillingFixture(t)
 	f.seedSubscription(t, billing.StatusPending)
-	checkout, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly")
+	checkout, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly", "")
 	if err != nil {
 		t.Fatalf("checkout: %v", err)
 	}
@@ -452,7 +618,7 @@ func TestWebhookUnknownAndExpired(t *testing.T) {
 		t.Errorf("unknown external id must not error (Xendit would retry): %v", err)
 	}
 
-	checkout, _ := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly")
+	checkout, _ := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly", "")
 	extID := externalIDOf(t, f.repo, checkout.PaymentID)
 	if err := f.svc.HandleWebhook(context.Background(), xendit.InvoiceCallback{
 		ExternalID: extID, Status: "EXPIRED",

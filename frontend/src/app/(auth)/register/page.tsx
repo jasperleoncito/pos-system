@@ -45,7 +45,7 @@ export default function RegisterPage() {
       onSuccess: (result) => {
         // Account exists — now collect the first payment. The fresh
         // access token is already stored, so checkout is authenticated.
-        checkout.mutate(values.plan, {
+        checkout.mutate({ plan: values.plan }, {
           onSuccess: (result) => {
             window.location.href = result.invoice_url;
           },

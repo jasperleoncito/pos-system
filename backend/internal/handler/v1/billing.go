@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -102,12 +103,35 @@ func (h *BillingHandler) CreateCheckout(c *gin.Context) {
 		return
 	}
 	result, err := h.billing.CreateCheckout(c.Request.Context(),
-		c.GetString(middleware.CtxTenantID), c.GetString(middleware.CtxUserID), req.Plan)
+		c.GetString(middleware.CtxTenantID), c.GetString(middleware.CtxUserID), req.Plan, req.Voucher)
 	if err != nil {
 		respondError(c, err)
 		return
 	}
 	response.OK(c, "checkout ready", result)
+}
+
+// PreviewVoucher godoc
+//
+//	@Summary	Validate a voucher code and preview the discounted price (owner)
+//	@Tags		billing
+//	@Security	BearerAuth
+//	@Accept		json
+//	@Produce	json
+//	@Param		payload	body		dto.PreviewVoucherRequest	true	"Code + plan"
+//	@Success	200		{object}	response.Envelope
+//	@Router		/billing/voucher/preview [post]
+func (h *BillingHandler) PreviewVoucher(c *gin.Context) {
+	var req dto.PreviewVoucherRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	preview, err := h.billing.PreviewVoucher(c.Request.Context(), req.Code, req.Plan)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	response.OK(c, "", preview)
 }
 
 // ListPayments godoc
@@ -247,6 +271,31 @@ func (h *BillingHandler) AdminMarkPaid(c *gin.Context) {
 	response.OK(c, "payment recorded — subscription extended", sub)
 }
 
+// AdminGrantMonths godoc
+//
+//	@Summary	Grant a subscription 1-6 free months (super admin)
+//	@Tags		admin
+//	@Security	BearerAuth
+//	@Accept		json
+//	@Produce	json
+//	@Param		tenantId	path		string					true	"Tenant ID"
+//	@Param		payload		body		dto.GrantMonthsRequest	true	"Months to grant"
+//	@Success	200			{object}	response.Envelope
+//	@Router		/admin/subscriptions/{tenantId}/grant [post]
+func (h *BillingHandler) AdminGrantMonths(c *gin.Context) {
+	var req dto.GrantMonthsRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	sub, err := h.billing.GrantMonths(c.Request.Context(),
+		c.GetString(middleware.CtxUserID), c.Param("tenantId"), req.Months)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	response.OK(c, "subscription extended", sub)
+}
+
 // AdminSetSubscriptionStatus godoc
 //
 //	@Summary	Force a subscription active or inactive (super admin)
@@ -311,4 +360,100 @@ func (h *BillingHandler) AdminUpdatePrices(c *gin.Context) {
 		return
 	}
 	response.OK(c, "prices updated", settings)
+}
+
+// AdminListVouchers godoc
+//
+//	@Summary	List subscription vouchers (super admin)
+//	@Tags		admin
+//	@Security	BearerAuth
+//	@Produce	json
+//	@Success	200	{object}	response.Envelope
+//	@Router		/admin/vouchers [get]
+func (h *BillingHandler) AdminListVouchers(c *gin.Context) {
+	page, limit := pageParams(c)
+	vouchers, total, err := h.billing.ListVouchers(c.Request.Context(), limit, (page-1)*limit)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	response.Paginated(c, "", vouchers, response.Meta{Total: total, Page: page, Limit: limit})
+}
+
+// AdminCreateVoucher godoc
+//
+//	@Summary	Create a subscription voucher (super admin)
+//	@Tags		admin
+//	@Security	BearerAuth
+//	@Accept		json
+//	@Produce	json
+//	@Param		payload	body		dto.CreateVoucherRequest	true	"Voucher"
+//	@Success	200		{object}	response.Envelope
+//	@Router		/admin/vouchers [post]
+func (h *BillingHandler) AdminCreateVoucher(c *gin.Context) {
+	var req dto.CreateVoucherRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	in := service.VoucherInput{
+		Code: req.Code, DiscountType: req.DiscountType, DiscountValue: req.DiscountValue,
+		AppliesTo: req.AppliesTo, MaxUses: req.MaxUses,
+	}
+	if req.ExpiresAt != nil && *req.ExpiresAt != "" {
+		t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, "expires_at must be an RFC3339 date")
+			return
+		}
+		in.ExpiresAt = &t
+	}
+	v, err := h.billing.CreateVoucher(c.Request.Context(), c.GetString(middleware.CtxUserID), in)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	response.OK(c, "voucher created", v)
+}
+
+// AdminSetVoucherActive godoc
+//
+//	@Summary	Activate or deactivate a voucher (super admin)
+//	@Tags		admin
+//	@Security	BearerAuth
+//	@Accept		json
+//	@Produce	json
+//	@Param		id		path		string						true	"Voucher ID"
+//	@Param		payload	body		dto.SetVoucherActiveRequest	true	"Active flag"
+//	@Success	200		{object}	response.Envelope
+//	@Router		/admin/vouchers/{id}/active [patch]
+func (h *BillingHandler) AdminSetVoucherActive(c *gin.Context) {
+	var req dto.SetVoucherActiveRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	v, err := h.billing.SetVoucherActive(c.Request.Context(),
+		c.GetString(middleware.CtxUserID), c.Param("id"), req.Active)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	response.OK(c, "voucher updated", v)
+}
+
+// AdminDeleteVoucher godoc
+//
+//	@Summary	Delete a voucher (super admin)
+//	@Tags		admin
+//	@Security	BearerAuth
+//	@Produce	json
+//	@Param		id	path		string	true	"Voucher ID"
+//	@Success	200	{object}	response.Envelope
+//	@Router		/admin/vouchers/{id} [delete]
+func (h *BillingHandler) AdminDeleteVoucher(c *gin.Context) {
+	if err := h.billing.DeleteVoucher(c.Request.Context(),
+		c.GetString(middleware.CtxUserID), c.Param("id")); err != nil {
+		respondError(c, err)
+		return
+	}
+	response.OK(c, "voucher deleted", nil)
 }

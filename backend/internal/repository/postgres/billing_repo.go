@@ -90,14 +90,30 @@ func (r *BillingRepo) Extend(ctx context.Context, tenantID, plan string) (*billi
 		RETURNING `+subscriptionColumns, tenantID, plan))
 }
 
+// ExtendMonths activates the subscription and pushes the due date out by
+// N calendar months from GREATEST(now, current period end) — a super-admin
+// comp/grant. Single atomic statement; all date math in SQL.
+func (r *BillingRepo) ExtendMonths(ctx context.Context, tenantID string, months int) (*billing.Subscription, error) {
+	return scanSubscription(r.db.QueryRow(ctx, `
+		UPDATE subscriptions SET
+			status = 'active',
+			current_period_start = now(),
+			current_period_end = GREATEST(now(), current_period_end) + ($2 * interval '1 month'),
+			due_notice_sent_at = NULL,
+			updated_at = now()
+		WHERE tenant_id = $1
+		RETURNING `+subscriptionColumns, tenantID, months))
+}
+
 const paymentColumns = `id, tenant_id, subscription_id, plan, amount, status, method, external_id,
-	xendit_invoice_id, xendit_invoice_url, payment_channel, paid_at, recorded_by, note, created_at`
+	xendit_invoice_id, xendit_invoice_url, payment_channel, paid_at, recorded_by, note,
+	voucher_id, discount_centavos, created_at`
 
 func scanPayment(row pgx.Row) (*billing.Payment, error) {
 	var p billing.Payment
 	err := row.Scan(&p.ID, &p.TenantID, &p.SubscriptionID, &p.Plan, &p.Amount, &p.Status, &p.Method,
 		&p.ExternalID, &p.XenditInvoiceID, &p.XenditInvoiceURL, &p.PaymentChannel, &p.PaidAt,
-		&p.RecordedBy, &p.Note, &p.CreatedAt)
+		&p.RecordedBy, &p.Note, &p.VoucherID, &p.DiscountCentavos, &p.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -108,11 +124,13 @@ func (r *BillingRepo) CreatePayment(ctx context.Context, p *billing.Payment) err
 	err := r.db.QueryRow(ctx, `
 		INSERT INTO subscription_payments
 			(tenant_id, subscription_id, plan, amount, status, method, external_id,
-			 xendit_invoice_id, xendit_invoice_url, payment_channel, paid_at, recorded_by, note)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			 xendit_invoice_id, xendit_invoice_url, payment_channel, paid_at, recorded_by, note,
+			 voucher_id, discount_centavos)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING id, created_at`,
 		p.TenantID, p.SubscriptionID, p.Plan, p.Amount, p.Status, p.Method, p.ExternalID,
 		p.XenditInvoiceID, p.XenditInvoiceURL, p.PaymentChannel, p.PaidAt, p.RecordedBy, p.Note,
+		p.VoucherID, p.DiscountCentavos,
 	).Scan(&p.ID, &p.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to create subscription payment: %w", err)
@@ -417,4 +435,109 @@ func (r *BillingRepo) UpdatePlatformSettings(ctx context.Context, monthly, yearl
 		return nil, fmt.Errorf("failed to update platform settings: %w", err)
 	}
 	return &s, nil
+}
+
+// ---- vouchers ----
+
+const voucherColumns = `id, code, discount_type, discount_value, applies_to,
+	max_uses, used_count, expires_at, active, created_at, updated_at`
+
+func scanVoucher(row pgx.Row) (*billing.Voucher, error) {
+	var v billing.Voucher
+	err := row.Scan(&v.ID, &v.Code, &v.DiscountType, &v.DiscountValue, &v.AppliesTo,
+		&v.MaxUses, &v.UsedCount, &v.ExpiresAt, &v.Active, &v.CreatedAt, &v.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &v, nil
+}
+
+func (r *BillingRepo) CreateVoucher(ctx context.Context, v *billing.Voucher) error {
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO vouchers (code, discount_type, discount_value, applies_to, max_uses, expires_at, active)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, used_count, created_at, updated_at`,
+		v.Code, v.DiscountType, v.DiscountValue, v.AppliesTo, v.MaxUses, v.ExpiresAt, v.Active,
+	).Scan(&v.ID, &v.UsedCount, &v.CreatedAt, &v.UpdatedAt)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return apperror.Conflict("a voucher with that code already exists")
+		}
+		return fmt.Errorf("failed to create voucher: %w", err)
+	}
+	return nil
+}
+
+func (r *BillingRepo) ListVouchers(ctx context.Context, limit, offset int) ([]billing.Voucher, int64, error) {
+	var total int64
+	if err := r.db.QueryRow(ctx,
+		`SELECT COUNT(*) FROM vouchers WHERE deleted_at IS NULL`).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count vouchers: %w", err)
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT `+voucherColumns+`
+		FROM vouchers WHERE deleted_at IS NULL
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2`, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list vouchers: %w", err)
+	}
+	defer rows.Close()
+	var out []billing.Voucher
+	for rows.Next() {
+		v, err := scanVoucher(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, *v)
+	}
+	return out, total, rows.Err()
+}
+
+func (r *BillingRepo) GetActiveVoucherByCode(ctx context.Context, code string) (*billing.Voucher, error) {
+	v, err := scanVoucher(r.db.QueryRow(ctx, `
+		SELECT `+voucherColumns+`
+		FROM vouchers
+		WHERE upper(code) = upper($1) AND active = TRUE AND deleted_at IS NULL`, code))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get voucher: %w", err)
+	}
+	return v, nil
+}
+
+func (r *BillingRepo) SetVoucherActive(ctx context.Context, id string, active bool) (*billing.Voucher, error) {
+	v, err := scanVoucher(r.db.QueryRow(ctx, `
+		UPDATE vouchers SET active = $2, updated_at = now()
+		WHERE id = $1 AND deleted_at IS NULL
+		RETURNING `+voucherColumns, id, active))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.NotFound("voucher")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to update voucher: %w", err)
+	}
+	return v, nil
+}
+
+func (r *BillingRepo) SoftDeleteVoucher(ctx context.Context, id string) error {
+	tag, err := r.db.Exec(ctx,
+		`UPDATE vouchers SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete voucher: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperror.NotFound("voucher")
+	}
+	return nil
+}
+
+func (r *BillingRepo) IncrementVoucherUse(ctx context.Context, id string) error {
+	if _, err := r.db.Exec(ctx,
+		`UPDATE vouchers SET used_count = used_count + 1, updated_at = now() WHERE id = $1`, id); err != nil {
+		return fmt.Errorf("failed to increment voucher use: %w", err)
+	}
+	return nil
 }

@@ -127,10 +127,7 @@ export default function POSPage() {
   });
 
   const onCharge = () => {
-    if (orderType === "dine_in" && !tableNumber.trim() && !payingOrder) {
-      toast.error("Enter the table number for dine-in orders");
-      return;
-    }
+    // Table number is optional — dine-in orders can be placed without one.
     setPaymentOpen(true);
   };
 
@@ -144,10 +141,6 @@ export default function POSPage() {
   };
 
   const onSplit = () => {
-    if (orderType === "dine_in" && !tableNumber.trim()) {
-      toast.error("Enter the table number for dine-in orders");
-      return;
-    }
     // The order is created first; splits are attached in the dialog.
     createOrder.mutate(orderPayload(false), {
       onSuccess: (order) => {

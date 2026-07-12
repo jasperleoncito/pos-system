@@ -39,8 +39,35 @@ export interface SubscriptionPayment {
 export interface CheckoutResult {
   payment_id: string;
   plan: BillingPlan;
-  amount: number;
+  amount: number; // final amount after any voucher
+  discount: number; // centavos saved
   invoice_url: string;
+  free: boolean; // a voucher covered the whole amount — no payment needed
+}
+
+export type VoucherDiscountType = "fixed" | "percentage";
+export type VoucherScope = "all" | "monthly" | "yearly";
+
+export interface Voucher {
+  id: string;
+  code: string;
+  discount_type: VoucherDiscountType;
+  discount_value: number; // centavos (fixed) | percent (percentage)
+  applies_to: VoucherScope;
+  max_uses?: number | null;
+  used_count: number;
+  expires_at?: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VoucherPreview {
+  code: string;
+  plan: BillingPlan;
+  original_amount: number;
+  discount: number;
+  final_amount: number;
 }
 
 export interface AdminSubscription extends Subscription {

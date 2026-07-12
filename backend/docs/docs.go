@@ -205,6 +205,51 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/subscriptions/{tenantId}/grant": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Grant a subscription 1-6 free months (super admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tenant ID",
+                        "name": "tenantId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Months to grant",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.GrantMonthsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/subscriptions/{tenantId}/mark-paid": {
             "post": {
                 "security": [
@@ -452,6 +497,144 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/dto.SetTenantStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/vouchers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List subscription vouchers (super admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Create a subscription voucher (super admin)",
+                "parameters": [
+                    {
+                        "description": "Voucher",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateVoucherRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/vouchers/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Delete a voucher (super admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Voucher ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/vouchers/{id}/active": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Activate or deactivate a voucher (super admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Voucher ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Active flag",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SetVoucherActiveRequest"
                         }
                     }
                 ],
@@ -1306,6 +1489,44 @@ const docTemplate = `{
                     "billing"
                 ],
                 "summary": "The active business's subscription (any member)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/billing/voucher/preview": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billing"
+                ],
+                "summary": "Validate a voucher code and preview the discounted price (owner)",
+                "parameters": [
+                    {
+                        "description": "Code + plan",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.PreviewVoucherRequest"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -5148,6 +5369,10 @@ const docTemplate = `{
                         "monthly",
                         "yearly"
                     ]
+                },
+                "voucher": {
+                    "type": "string",
+                    "maxLength": 40
                 }
             }
         },
@@ -5287,6 +5512,50 @@ const docTemplate = `{
                     "items": {
                         "type": "integer"
                     }
+                }
+            }
+        },
+        "dto.CreateVoucherRequest": {
+            "type": "object",
+            "required": [
+                "applies_to",
+                "code",
+                "discount_type",
+                "discount_value"
+            ],
+            "properties": {
+                "applies_to": {
+                    "type": "string",
+                    "enum": [
+                        "all",
+                        "monthly",
+                        "yearly"
+                    ]
+                },
+                "code": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "minLength": 3
+                },
+                "discount_type": {
+                    "type": "string",
+                    "enum": [
+                        "fixed",
+                        "percentage"
+                    ]
+                },
+                "discount_value": {
+                    "description": "centavos (fixed) | percent (percentage)",
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "expires_at": {
+                    "description": "RFC3339, optional",
+                    "type": "string"
+                },
+                "max_uses": {
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -5451,6 +5720,19 @@ const docTemplate = `{
             "properties": {
                 "email": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.GrantMonthsRequest": {
+            "type": "object",
+            "required": [
+                "months"
+            ],
+            "properties": {
+                "months": {
+                    "type": "integer",
+                    "maximum": 6,
+                    "minimum": 1
                 }
             }
         },
@@ -5829,6 +6111,26 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.PreviewVoucherRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "plan"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "maxLength": 40
+                },
+                "plan": {
+                    "type": "string",
+                    "enum": [
+                        "monthly",
+                        "yearly"
+                    ]
+                }
+            }
+        },
         "dto.PriorityRequest": {
             "type": "object",
             "properties": {
@@ -6140,6 +6442,14 @@ const docTemplate = `{
                         "active",
                         "suspended"
                     ]
+                }
+            }
+        },
+        "dto.SetVoucherActiveRequest": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean"
                 }
             }
         },
