@@ -145,7 +145,10 @@ func (s *AuthService) Register(ctx context.Context, fullName, email, plainPasswo
 		}
 	}
 
-	s.sendVerificationEmail(ctx, user)
+	// Email verification is not sent on register and is not required to use
+	// the app — registration logs the owner straight in. The verification
+	// machinery is kept (POST /auth/resend-verification triggers it on
+	// demand) so it can be re-enabled here later if we ever gate on it.
 
 	s.auditor.Record(audit.Log{
 		TenantID: t.ID, UserID: user.ID, Action: "auth.register",

@@ -148,22 +148,25 @@ func (s *BillingService) CreateCheckout(ctx context.Context, tenantID, userID, p
 		return nil, err
 	}
 
-	// Reuse a fresh pending invoice for the same plan so abandoning the
-	// checkout page doesn't mint duplicates.
-	if existing, err := s.repo.FindReusablePendingPayment(ctx, tenantID, plan); err != nil {
-		return nil, err
-	} else if existing != nil {
-		return &CheckoutResult{
-			PaymentID: existing.ID, Plan: existing.Plan,
-			Amount: existing.Amount, InvoiceURL: existing.XenditInvoiceURL,
-		}, nil
-	}
-
 	settings, err := s.repo.GetPlatformSettings(ctx)
 	if err != nil {
 		return nil, err
 	}
 	amount := settings.PriceFor(plan)
+
+	// Reuse a fresh pending invoice for the same plan so abandoning the
+	// checkout page doesn't mint duplicates — but ONLY if its amount still
+	// matches the current price. If the super admin changed the price, the
+	// old invoice is stale (Xendit invoices are immutable), so fall through
+	// and mint a new one at the current price.
+	if existing, err := s.repo.FindReusablePendingPayment(ctx, tenantID, plan); err != nil {
+		return nil, err
+	} else if existing != nil && existing.Amount == amount {
+		return &CheckoutResult{
+			PaymentID: existing.ID, Plan: existing.Plan,
+			Amount: existing.Amount, InvoiceURL: existing.XenditInvoiceURL,
+		}, nil
+	}
 
 	t, err := s.tenants.GetByID(ctx, tenantID)
 	if err != nil {
