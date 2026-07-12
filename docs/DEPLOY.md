@@ -1,76 +1,147 @@
-# Deploying with a domain — Nginx Proxy Manager step by step
+# Deploying with a domain — Portainer + Nginx Proxy Manager
 
 How to put the POS on a real domain using a VPS that already runs
-**Portainer** and **Nginx Proxy Manager (NPM)**.
+**Portainer** and **Nginx Proxy Manager (NPM)**. This reflects the actual
+working setup — NPM reaches the stack **by container name over a shared
+Docker network**, not via a published host port.
 
-Throughout this guide the examples use:
+Examples below use (replace with your own):
 
-| Thing | Example value (replace with yours) |
+| Thing | Example value |
 |---|---|
 | Domain | `pos.jprserver.uk` |
-| VPS public IP | `74.208.192.101` |
-| App port on the VPS | `7642` (the stack's `WEB_PORT`) |
+| VPS public IP | `72.61.151.141` |
+| NPM's Docker network | `nginx-proxy_default` |
+| Stack's internal nginx container | `pos-system-nginx-1` |
 
-**You do NOT need a separate API subdomain** (no `api.pos.jprserver.uk`).
-The stack ships its own internal nginx that serves the frontend, the API
-(`/api/...`), and images (`/storage/...`) on one origin. NPM only adds
-the domain + HTTPS in front of that single port.
+**You do NOT need an API subdomain.** The stack ships its own internal
+nginx that serves the frontend, the API (`/api/...`), and images
+(`/storage/...`) on one origin. NPM only adds the domain + HTTPS in front.
 
 ```
-Browser ── https://pos.jprserver.uk ──► NPM (TLS) ──► VPS:7642 (stack nginx)
-                                                        ├── /api      → Go backend
-                                                        ├── /storage  → MinIO images
-                                                        └── /         → Next.js app
+Browser ─ https://pos.jprserver.uk ─► Cloudflare ─► NPM (TLS :443)
+             │
+             └─ docker network: nginx-proxy_default ─► pos-system-nginx-1:80
+                                                         ├── /api      → pos-backend:9137  (Go)
+                                                         ├── /storage  → pos-minio:9000    (MinIO)
+                                                         └── /         → pos-frontend:4519 (Next.js)
 ```
+
+> **Key idea:** the stack's nginx joins NPM's network (`edge` → external
+> `nginx-proxy_default`). NPM forwards to `pos-system-nginx-1:80` by name.
+> The stack publishes **no** public ports — `7642`/`9673`/`9284` are bound to
+> `127.0.0.1` only. This is the same pattern the sibling `rent-system` uses.
 
 ---
 
+## Prerequisites
+
+- Portainer + NPM already running on the VPS.
+- NPM is attached to a Docker network (here `nginx-proxy_default`). Find it:
+  ```bash
+  docker inspect npm --format '{{json .NetworkSettings.Networks}}'
+  ```
+  If yours is named differently, set `NPM_NETWORK=<that-name>` in the stack
+  env (Step 2). The compose defaults it to `nginx-proxy_default`.
+
 ## Step 1 — DNS record
 
-At your domain registrar (or DNS provider), create an **A record**:
+`jprserver.uk` here is on **Cloudflare**. Add the subdomain:
 
-| Type | Name | Value | TTL |
+| Type | Name | Value | Proxy status |
 |---|---|---|---|
-| A | `pos` | `74.208.192.101` | default |
+| A | `pos` | `72.61.151.141` | **DNS only (grey cloud)** ← during first cert issuance |
 
-Wait until `pos.jprserver.uk` resolves (usually minutes):
-`nslookup pos.jprserver.uk` should return your VPS IP.
+Grey-cloud it first so Let's Encrypt's HTTP-01 challenge reaches the origin
+directly. After the cert is issued (Step 4) you can flip it back to
+**Proxied (orange cloud)** to match your other subdomains.
+
+Verify it resolves to the VPS before continuing:
+```bash
+getent hosts pos.jprserver.uk    # must show 72.61.151.141
+```
 
 ## Step 2 — Deploy the stack in Portainer
 
-1. Portainer → **Stacks → Add stack**.
-2. Name: `pos-system`.
-3. Build method: **Repository** → paste your git repo URL
-   (compose path: `docker-compose.yml`, branch `main`).
-4. Scroll to **Environment variables** and add these
-   (see `.env.example` — every production value is marked `PROD:`):
+1. Portainer → **Stacks → Add stack**, name `pos-system`.
+2. Build method: **Repository** → your git repo URL, compose path
+   `docker-compose.yml`, branch `main`.
+3. Scroll to **Environment variables** → **Advanced mode** and paste the
+   block below. The stack reads config from these (there is **no** `.env`
+   file in the repo — it's gitignored). Fill the four secrets and your
+   domain; the rest are safe defaults.
 
    ```env
+   # ---- app ----
    APP_ENV=production
+   APP_NAME=POS System
    WEB_PORT=7642
-   DB_PASSWORD=<long random>
-   JWT_SECRET=<long random — openssl rand -base64 48>
-   MINIO_ACCESS_KEY=<random>
-   MINIO_SECRET_KEY=<long random>
+   HTTP_PORT=9137
+
+   # ---- domain (all three must match your domain) ----
    CORS_ORIGINS=https://pos.jprserver.uk
    APP_URL=https://pos.jprserver.uk
    MINIO_PUBLIC_BASE_URL=https://pos.jprserver.uk/storage
-   # real mail provider (or omit to keep the bundled Mailpit for testing)
-   SMTP_HOST=smtp.yourprovider.com
+
+   # ---- secrets (generate NEW ones — openssl rand -base64 48) ----
+   DB_PASSWORD=<long-random>
+   JWT_SECRET=<long-random>
+   MINIO_ACCESS_KEY=<random>
+   MINIO_SECRET_KEY=<long-random>
+
+   # ---- postgres / redis / minio (service names — leave as-is) ----
+   DB_HOST=postgres
+   DB_PORT=5432
+   DB_USER=pos
+   DB_NAME=pos
+   DB_SSLMODE=disable
+   DB_MAX_CONNS=20
+   REDIS_ADDR=redis:6379
+   REDIS_PASSWORD=
+   REDIS_DB=0
+   MINIO_ENDPOINT=minio:9000
+   MINIO_BUCKET=pos
+   MINIO_USE_SSL=false
+
+   # ---- jwt lifetimes ----
+   JWT_ACCESS_TTL=15m
+   JWT_REFRESH_TTL=720h
+
+   # ---- mail (real provider for prod; Gmail SMTP shown) ----
+   SMTP_HOST=smtp.gmail.com
    SMTP_PORT=587
-   SMTP_USER=...
-   SMTP_PASSWORD=...
+   SMTP_USER=you@gmail.com
+   SMTP_PASSWORD=<gmail app password>
    SMTP_FROM=noreply@jprserver.uk
+   SMTP_FROM_NAME=POS System
+
+   # ---- Xendit billing (OPTIONAL — leave blank to launch without billing) ----
+   # App boots fine without these; subscription billing stays off until BOTH
+   # are set (secret key creates invoices, webhook token confirms payments).
+   XENDIT_SECRET_KEY=
+   XENDIT_WEBHOOK_TOKEN=
+
+   # ---- seeding ----
+   SEED_ON_START=admin
+   SEED_PASSWORD=<change-me>
+
+   # ---- only if NPM's network isn't named nginx-proxy_default ----
+   # NPM_NETWORK=your-npm-network
    ```
 
-5. **Deploy the stack.** First build takes a few minutes.
-6. Check it locally on the VPS: `curl http://localhost:7642/api/v1/health`
-   should return `"success":true`.
+   Required at boot: `DB_PASSWORD`, `JWT_SECRET`, `MINIO_ACCESS_KEY`,
+   `MINIO_SECRET_KEY`, `CORS_ORIGINS`. Xendit is **not** required.
 
-> Do not publish ports 5432/6379/9000 anywhere — the compose file
-> already keeps them internal. Only `7642` (app), `9673` (MinIO console)
-> and `9284` (Mailpit) are published; you can firewall the last two to
-> your own IP.
+4. **Deploy the stack.** First build takes a few minutes.
+5. Confirm on the VPS (it listens on loopback only):
+   ```bash
+   curl http://127.0.0.1:7642/api/v1/health     # → {"success":true,...,"status":"healthy"}
+   ```
+
+> **Ports are localhost-only by design.** `7642` (app), `9673` (MinIO
+> console) and `9284` (Mailpit) are bound to `127.0.0.1` — reach them via an
+> SSH tunnel, e.g. `ssh -L 9673:127.0.0.1:9673 root@72.61.151.141`. Postgres,
+> Redis and MinIO's API are never published.
 
 ## Step 3 — Proxy host in Nginx Proxy Manager
 
@@ -82,54 +153,74 @@ NPM → **Hosts → Proxy Hosts → Add Proxy Host**.
 |---|---|
 | Domain Names | `pos.jprserver.uk` |
 | Scheme | `http` |
-| Forward Hostname / IP | `74.208.192.101` (or the Docker gateway IP if NPM is on the same host) |
-| Forward Port | `7642` |
-| Cache Assets | OFF (Next.js sets its own caching) |
+| Forward Hostname / IP | `pos-system-nginx-1` ← **container name, NOT the public IP** |
+| Forward Port | `80` |
+| Cache Assets | OFF |
 | Block Common Exploits | ON |
 | Websockets Support | **ON** ← required for the live Kitchen Display stream |
 
-**SSL tab**
+> Forwarding to the public IP (`72.61.151.141:80`) does **not** work — port 80
+> on that IP is NPM itself, so it loops. Always use the container name; NPM and
+> the stack's nginx share the `nginx-proxy_default` network.
+
+**SSL tab** (only after DNS from Step 1 resolves)
 
 | Field | Value |
 |---|---|
-| SSL Certificate | Request a new SSL Certificate (Let's Encrypt) |
+| SSL Certificate | Request a new Let's Encrypt certificate |
 | Force SSL | ON |
 | HTTP/2 Support | ON |
-| HSTS Enabled | ON (optional but recommended) |
+| HSTS | optional (the app already sends HSTS in production) |
 | Email / Agree to ToS | fill in / tick |
 
-Save. NPM fetches the certificate; `https://pos.jprserver.uk` is live.
+Save. NPM fetches the cert; `https://pos.jprserver.uk` is live.
 
-## Step 4 — First data
+> ⚠️ Let's Encrypt allows only **5 failed validations per hostname per hour**.
+> Make sure DNS resolves before requesting, or you'll be locked out for an hour.
 
-Either register your own business at
-`https://pos.jprserver.uk/register`, **or** load the demo data
-(SSH on the VPS):
+## Step 4 — Re-enable Cloudflare proxy (optional)
+
+Once the cert is issued, flip the `pos` record back to **Proxied (orange
+cloud)** in Cloudflare for CDN/DDoS protection, matching your other subdomains.
+
+## Step 5 — First data
+
+Register your own business at `https://pos.jprserver.uk/register`, **or** load
+demo data on the VPS:
 
 ```bash
 docker exec pos-system-backend-1 /app/seed
 ```
 
-> The demo accounts all use password `password123` — on a public
-> server change them immediately or skip seeding entirely.
+> Demo accounts use password `password123` — change them or skip seeding on a
+> public server. `SEED_ON_START=admin` already creates just the super admin.
 
-## Step 5 — Verify everything works
+## Step 6 — Verify
 
 - [ ] Log in at `https://pos.jprserver.uk`
-- [ ] Upload a product photo in **Menu** — the image displays
-      (proves `MINIO_PUBLIC_BASE_URL` is right)
-- [ ] Open **Kitchen** in one tab, place a POS order in another —
-      the ticket appears instantly (proves SSE through NPM)
-- [ ] Use **Forgot password** — the email link points at
-      `https://pos.jprserver.uk/reset-password?...`
-      (proves `APP_URL`; check your inbox or Mailpit)
-- [ ] `https://pos.jprserver.uk/api/v1/docs/index.html` is **absent**
-      (Swagger is disabled when `APP_ENV=production`)
+- [ ] Upload a product photo in **Menu** — the image displays (proves `MINIO_PUBLIC_BASE_URL`)
+- [ ] Open **Kitchen** in one tab, place an order in another — the ticket appears instantly (proves SSE through NPM)
+- [ ] **Forgot password** — the emailed link points at `https://pos.jprserver.uk/...` (proves `APP_URL`)
+- [ ] `https://pos.jprserver.uk/api/v1/docs/index.html` is **absent** (Swagger off in production)
+
+## Firewall (UFW)
+
+Nothing extra to open. The app is served through NPM on **443**:
+
+```
+22/tcp  ALLOW   (SSH)
+80      ALLOW   (NPM — Let's Encrypt + http→https redirect)
+443     ALLOW   (NPM — HTTPS)
+```
+
+Do **not** add a UFW allow for `7642`/`9673`/`9284`. Note UFW does **not**
+filter Docker-published ports (Docker writes its own iptables rules) — which is
+exactly why this stack binds those ports to `127.0.0.1` instead of relying on a
+firewall rule.
 
 ## Updating the app later
 
-Push to `main`, then in Portainer open the stack → **Pull and redeploy**
-(or `docker compose up -d --build` in the repo directory on the VPS).
+Push to `main`, then in Portainer open the stack → **Pull and redeploy**.
 Database migrations run automatically when the backend starts.
 
 ## Backups
@@ -148,9 +239,11 @@ Restore notes are inside `scripts/backup.sh`.
 
 | Symptom | Likely cause / fix |
 |---|---|
-| NPM shows **502 Bad Gateway** | Stack not up yet (`docker ps`), wrong forward IP/port, or a firewall blocking 7642 between NPM and the host. If NPM runs in Docker on the same VPS, forward to the host IP, not `localhost`. |
-| Site loads but **images are broken** | `MINIO_PUBLIC_BASE_URL` doesn't match the domain — must be `https://pos.jprserver.uk/storage`. Re-deploy the backend after changing it. |
-| **Kitchen Display doesn't update live** (only every 10 s) | Websockets Support is OFF on the NPM proxy host — turn it ON. (The app falls back to polling, so it still works, just slower.) |
-| **Emailed links point at localhost** | `APP_URL` not set — set it and redeploy the backend. |
-| Login works on the domain but API calls fail from another site | That's CORS doing its job — add the other origin to `CORS_ORIGINS` only if you really want to allow it. |
-| Mixed-content warnings | Force SSL wasn't enabled in NPM, or something hardcodes `http://` — check `MINIO_PUBLIC_BASE_URL`. |
+| NPM **"Internal Error"** on save | Let's Encrypt cert request failed — the domain doesn't resolve to the VPS yet (Step 1), or you hit the 5-fails/hour limit. Fix DNS, wait, retry once. |
+| **502 Bad Gateway** via NPM | (a) Forward host is the public IP instead of `pos-system-nginx-1` (Step 3); or (b) the stack's nginx resolved another stack's `backend`/`minio` on the shared network — the compose fixes this with unique `pos-backend`/`pos-frontend`/`pos-minio` aliases, so redeploy after pulling; or (c) stack still starting (`docker ps`). |
+| `curl 127.0.0.1:7642/api/v1/health` fails on the VPS | Backend crash-looping — check `docker logs pos-system-backend-1`. Usually a missing required secret (`DB_PASSWORD`/`JWT_SECRET`/`MINIO_*`). |
+| **Images broken** | `MINIO_PUBLIC_BASE_URL` must be `https://<domain>/storage`. Redeploy after fixing. |
+| **Kitchen Display not live** (updates every ~10 s) | Websockets Support is OFF on the NPM proxy host — turn it ON. |
+| **Emailed links point at localhost** | `APP_URL` not set — set it and redeploy. |
+| Emails don't arrive | `SMTP_HOST=mailpit` left in prod (Mailpit gets nothing) — use a real provider. Gmail rewrites `From` to the authenticated account and caps ~500/day. |
+| Domain won't validate but resolves | Cloudflare proxy (orange) can interfere with HTTP-01 — set the record to **DNS only (grey)** for issuance, then re-enable proxy. |

@@ -17,9 +17,14 @@ Multi-tenant restaurant POS & business management platform. One owner, many busi
 ## Quick start
 
 ```bash
-cp .env.example .env   # then edit secrets (JWT_SECRET, DB_PASSWORD, MinIO keys)
+cp .env.example .env                        # then edit secrets (JWT_SECRET, DB_PASSWORD, MinIO keys)
+docker network create nginx-proxy_default   # one-time: the shared edge net the compose expects
 docker compose up -d --build
 ```
+
+> The `nginx-proxy_default` network is where a reverse proxy (Nginx Proxy
+> Manager) reaches the app in production; locally it just needs to exist once.
+> See [docs/DEPLOY.md](docs/DEPLOY.md) for the full VPS + domain setup.
 
 | URL | Service |
 |-----|---------|

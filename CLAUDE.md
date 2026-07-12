@@ -27,7 +27,7 @@ Multi-tenant restaurant POS SaaS (PRD in `first-prompt.md`). Built in phases —
 
 ## Dev workflow
 
-- **ONE compose file** (`docker-compose.yml`), used locally AND on the VPS. All services are production-built — there is NO hot reload; after editing code rebuild that service: `docker compose up -d --build backend` (or `frontend`/`worker`). nginx is the single entrypoint on WEB_PORT (default 7642): routes /api→Go, /storage→MinIO, /→Next with SSE buffering off; on the VPS an external reverse proxy (Nginx Proxy Manager) terminates TLS and forwards to that port.
+- **ONE compose file** (`docker-compose.yml`), used locally AND on the VPS. All services are production-built — there is NO hot reload; after editing code rebuild that service: `docker compose up -d --build backend` (or `frontend`/`worker`). nginx is the single entrypoint: routes /api→Go, /storage→MinIO, /→Next with SSE buffering off. WEB_PORT (default 7642), MinIO console (9673) and Mailpit (9284) are bound to 127.0.0.1 only. On the VPS, Nginx Proxy Manager terminates TLS and reaches the stack's nginx BY CONTAINER NAME (`pos-system-nginx-1:80`) over the shared external network `nginx-proxy_default` (compose `edge` network, name via `NPM_NETWORK`) — nginx proxies to `pos-backend`/`pos-frontend`/`pos-minio` aliases so it never collides with other stacks. See docs/DEPLOY.md.
 - App: http://localhost:7642 · Swagger: http://localhost:7642/api/v1/docs/index.html · Mailpit: http://localhost:9284 · MinIO console: http://localhost:9673
 - Seed (idempotent): `docker compose exec backend /app/seed`
 - Tests: `make test` (runs `go test -race` inside the container — the Windows host has no gcc, so run plain `go test ./...` when testing on the host).
