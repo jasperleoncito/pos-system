@@ -52,7 +52,7 @@ services:
     volumes:
       - minio-data:/data
     ports:
-      - "9673:9001" # web console
+      - "127.0.0.1:9673:9001" # web console — localhost only (SSH-tunnel to reach)
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
@@ -166,7 +166,7 @@ services:
   mailpit:
     image: axllent/mailpit:v1.21
     ports:
-      - "9284:8025" # web UI
+      - "127.0.0.1:9284:8025" # web UI — localhost only (SSH-tunnel to reach)
     restart: unless-stopped
     networks: [pos-network]
 
@@ -174,12 +174,18 @@ services:
     build:
       context: ./deploy/nginx
     ports:
-      - "${WEB_PORT:-7642}:80"
+      # Localhost only. The PUBLIC edge is Nginx Proxy Manager, which reaches
+      # this container BY NAME (pos-system-nginx-1) over the shared `edge`
+      # network — so no public port is needed. 7642 stays on loopback for
+      # local dev / SSH-tunnel debugging, never exposed to the internet.
+      - "127.0.0.1:${WEB_PORT:-7642}:80"
     depends_on:
       - frontend
       - backend
     restart: unless-stopped
-    networks: [pos-network]
+    networks:
+      - pos-network
+      - edge
 
 volumes:
   postgres-data:
@@ -189,3 +195,11 @@ volumes:
 networks:
   pos-network:
     driver: bridge
+  # Shared with Nginx Proxy Manager so it forwards the domain to
+  # pos-system-nginx-1 by name — no public port required. On the VPS this is
+  # NPM's existing network (default below). If NPM sits on a differently named
+  # network, set NPM_NETWORK in the stack env. Locally, create it once:
+  #   docker network create nginx-proxy_default
+  edge:
+    external: true
+    name: ${NPM_NETWORK:-nginx-proxy_default}
