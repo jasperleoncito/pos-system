@@ -59,7 +59,9 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
-    networks: [pos-network]
+    networks:
+      pos-network:
+        aliases: [pos-minio]
 
   minio-init:
     image: minio/mc:RELEASE.2024-11-21T17-21-54Z
@@ -136,7 +138,9 @@ services:
       minio-init:
         condition: service_completed_successfully
     restart: unless-stopped
-    networks: [pos-network]
+    networks:
+      pos-network:
+        aliases: [pos-backend]
 
   worker:
     build:
@@ -161,7 +165,9 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: /api/v1
     restart: unless-stopped
-    networks: [pos-network]
+    networks:
+      pos-network:
+        aliases: [pos-frontend]
 
   mailpit:
     image: axllent/mailpit:v1.21
