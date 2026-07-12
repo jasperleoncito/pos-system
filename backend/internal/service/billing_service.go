@@ -31,6 +31,7 @@ type SubscriptionCreator interface {
 type InvoiceCreator interface {
 	Configured() bool
 	CreateInvoice(ctx context.Context, in xendit.CreateInvoiceRequest) (*xendit.Invoice, error)
+	GetInvoice(ctx context.Context, id string) (*xendit.Invoice, error)
 }
 
 // StatusCache is the Redis JSON cache surface used for the per-request
@@ -225,6 +226,51 @@ func (s *BillingService) CreateCheckout(ctx context.Context, tenantID, userID, p
 // ListPayments returns the tenant's own payment history (owner).
 func (s *BillingService) ListPayments(ctx context.Context, tenantID string, limit, offset int) ([]billing.Payment, int64, error) {
 	return s.repo.ListPaymentsByTenant(ctx, tenantID, limit, offset)
+}
+
+// ReconcilePending is the webhook-independent confirmation path: the
+// return page polls it, and it asks Xendit directly whether the tenant's
+// latest pending invoice is paid — activating the subscription if so.
+// Idempotent and safe to call repeatedly; returns the current subscription.
+func (s *BillingService) ReconcilePending(ctx context.Context, tenantID string) (*billing.Subscription, error) {
+	sub, err := s.repo.GetByTenant(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	// Already active, or no way to check — nothing to reconcile.
+	if sub.Status == billing.StatusActive || !s.invoices.Configured() {
+		return sub, nil
+	}
+
+	pending, err := s.repo.LatestPendingXenditPayment(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if pending == nil {
+		return sub, nil
+	}
+
+	inv, err := s.invoices.GetInvoice(ctx, pending.XenditInvoiceID)
+	if err != nil {
+		// Don't fail the return page on a transient Xendit hiccup; the
+		// caller just keeps polling and sees the still-pending status.
+		s.logger.Warn("reconcile: fetch invoice failed", "tenant", tenantID,
+			"invoice", pending.XenditInvoiceID, "error", err)
+		return sub, nil
+	}
+	if !inv.IsPaid() {
+		return sub, nil
+	}
+
+	// Paid — run the exact same idempotent path the webhook would.
+	if err := s.HandleWebhook(ctx, xendit.InvoiceCallback{
+		ID: inv.ID, ExternalID: pending.ExternalID, Status: inv.Status,
+		PaidAmount: inv.PaidAmount, PaidAt: inv.PaidAt, PaymentChannel: inv.PaymentChannel,
+	}); err != nil {
+		return nil, err
+	}
+	s.logger.Info("reconcile activated subscription", "tenant", tenantID, "invoice", inv.ID)
+	return s.repo.GetByTenant(ctx, tenantID)
 }
 
 // HandleWebhook processes a Xendit invoice callback. The handler has

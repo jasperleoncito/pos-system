@@ -199,6 +199,8 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		billingGroup.GET("/subscription", billingHandler.GetSubscription)
 		billingManage := middleware.RequirePermission(rbac.PermBillingManage)
 		billingGroup.POST("/checkout", billingManage, billingHandler.CreateCheckout)
+		// Webhook-independent confirmation: the return page polls this.
+		billingGroup.POST("/reconcile", billingManage, billingHandler.Reconcile)
 		billingGroup.GET("/payments", billingManage, billingHandler.ListPayments)
 	}
 

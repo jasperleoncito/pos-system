@@ -142,6 +142,9 @@ type Repository interface {
 	// FindReusablePendingPayment returns a recent (<24h) pending xendit
 	// payment for the tenant+plan, if any, so checkouts don't pile up.
 	FindReusablePendingPayment(ctx context.Context, tenantID, plan string) (*Payment, error)
+	// LatestPendingXenditPayment returns the tenant's most recent pending
+	// xendit payment (any plan) for return-page reconciliation.
+	LatestPendingXenditPayment(ctx context.Context, tenantID string) (*Payment, error)
 	ListPaymentsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]Payment, int64, error)
 
 	// Sweep queries.

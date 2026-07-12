@@ -1719,6 +1719,22 @@ paths:
       summary: Current subscription prices (public — shown at registration)
       tags:
       - billing
+  /billing/reconcile:
+    post:
+      description: 'Webhook-independent: asks Xendit if the pending invoice is paid
+        and activates the subscription. Polled by the payment-return page.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Confirm the latest pending payment directly with Xendit
+      tags:
+      - billing
   /billing/subscription:
     get:
       produces:

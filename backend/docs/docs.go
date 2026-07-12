@@ -1267,6 +1267,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/billing/reconcile": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Webhook-independent: asks Xendit if the pending invoice is paid and activates the subscription. Polled by the payment-return page.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billing"
+                ],
+                "summary": "Confirm the latest pending payment directly with Xendit",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/billing/subscription": {
             "get": {
                 "security": [

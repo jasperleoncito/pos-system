@@ -68,6 +68,24 @@ func (h *BillingHandler) GetSubscription(c *gin.Context) {
 	response.OK(c, "", sub)
 }
 
+// Reconcile godoc
+//
+//	@Summary	Confirm the latest pending payment directly with Xendit
+//	@Description Webhook-independent: asks Xendit if the pending invoice is paid and activates the subscription. Polled by the payment-return page.
+//	@Tags		billing
+//	@Security	BearerAuth
+//	@Produce	json
+//	@Success	200	{object}	response.Envelope
+//	@Router		/billing/reconcile [post]
+func (h *BillingHandler) Reconcile(c *gin.Context) {
+	sub, err := h.billing.ReconcilePending(c.Request.Context(), c.GetString(middleware.CtxTenantID))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	response.OK(c, "reconciled", sub)
+}
+
 // CreateCheckout godoc
 //
 //	@Summary	Create (or reuse) a Xendit invoice for the next period

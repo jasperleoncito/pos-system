@@ -134,6 +134,23 @@ func (r *fakeBillingRepo) FindReusablePendingPayment(_ context.Context, tenantID
 	return nil, nil
 }
 
+func (r *fakeBillingRepo) LatestPendingXenditPayment(_ context.Context, tenantID string) (*billing.Payment, error) {
+	var latest *billing.Payment
+	for _, p := range r.payments {
+		if p.TenantID == tenantID && p.Status == billing.PaymentPending &&
+			p.Method == "xendit" && p.XenditInvoiceID != "" {
+			if latest == nil || p.CreatedAt.After(latest.CreatedAt) {
+				latest = p
+			}
+		}
+	}
+	if latest == nil {
+		return nil, nil
+	}
+	copied := *latest
+	return &copied, nil
+}
+
 func (r *fakeBillingRepo) ListPaymentsByTenant(_ context.Context, tenantID string, _, _ int) ([]billing.Payment, int64, error) {
 	var out []billing.Payment
 	for _, p := range r.payments {
@@ -172,6 +189,7 @@ func (r *fakeBillingRepo) UpdatePlatformSettings(_ context.Context, monthly, yea
 type fakeInvoices struct {
 	created    int
 	configured bool
+	getStatus  string // status GetInvoice reports (default PENDING)
 }
 
 func (f *fakeInvoices) Configured() bool { return f.configured }
@@ -182,6 +200,13 @@ func (f *fakeInvoices) CreateInvoice(_ context.Context, in xendit.CreateInvoiceR
 		InvoiceURL: "https://checkout.xendit.co/" + in.ExternalID,
 		Status:     "PENDING",
 	}, nil
+}
+func (f *fakeInvoices) GetInvoice(_ context.Context, id string) (*xendit.Invoice, error) {
+	status := f.getStatus
+	if status == "" {
+		status = "PENDING"
+	}
+	return &xendit.Invoice{ID: id, Status: status}, nil
 }
 
 type fakeCache struct {
@@ -294,6 +319,69 @@ func TestCreateCheckoutCreatesThenReusesPendingInvoice(t *testing.T) {
 	}
 	if f.invoices.created != 2 {
 		t.Errorf("xendit invoices created = %d, want 2 after plan switch", f.invoices.created)
+	}
+}
+
+func TestCreateCheckoutRepricesStalePendingInvoice(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedSubscription(t, billing.StatusPending)
+
+	first, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly")
+	if err != nil {
+		t.Fatalf("first checkout: %v", err)
+	}
+	// Super admin lowers the price after the first invoice was minted.
+	if _, err := f.repo.UpdatePlatformSettings(context.Background(), 2000, 50000); err != nil {
+		t.Fatalf("update prices: %v", err)
+	}
+	second, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly")
+	if err != nil {
+		t.Fatalf("second checkout: %v", err)
+	}
+	if second.Amount != 2000 {
+		t.Errorf("amount = %d, want new price 2000 (stale %d must not be reused)", second.Amount, first.Amount)
+	}
+	if f.invoices.created != 2 {
+		t.Errorf("xendit invoices created = %d, want 2 (stale-priced invoice re-minted)", f.invoices.created)
+	}
+	if second.PaymentID == first.PaymentID {
+		t.Error("expected a fresh payment at the new price, not the stale one")
+	}
+}
+
+func TestReconcileActivatesWhenXenditReportsPaid(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedSubscription(t, billing.StatusPending)
+	if _, err := f.svc.CreateCheckout(context.Background(), "tenant-1", "user-1", "monthly"); err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+
+	// Xendit still says pending → no activation.
+	f.invoices.getStatus = "PENDING"
+	sub, err := f.svc.ReconcilePending(context.Background(), "tenant-1")
+	if err != nil {
+		t.Fatalf("reconcile (pending): %v", err)
+	}
+	if sub.Status != billing.StatusPending {
+		t.Errorf("status = %q, want still pending", sub.Status)
+	}
+
+	// Xendit now reports PAID → subscription activates.
+	f.invoices.getStatus = "PAID"
+	sub, err = f.svc.ReconcilePending(context.Background(), "tenant-1")
+	if err != nil {
+		t.Fatalf("reconcile (paid): %v", err)
+	}
+	if sub.Status != billing.StatusActive {
+		t.Errorf("status = %q, want active after paid reconcile", sub.Status)
+	}
+
+	// Idempotent — reconciling again is a safe no-op.
+	if sub, err = f.svc.ReconcilePending(context.Background(), "tenant-1"); err != nil {
+		t.Fatalf("reconcile (again): %v", err)
+	}
+	if sub.Status != billing.StatusActive {
+		t.Errorf("status = %q, want still active", sub.Status)
 	}
 }
 

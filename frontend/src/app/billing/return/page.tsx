@@ -7,7 +7,7 @@ import { CheckCircle2, Loader2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/hooks/use-auth";
-import { useSubscription } from "@/hooks/use-billing";
+import { useReconcilePayment } from "@/hooks/use-billing";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -15,8 +15,9 @@ const POLL_MS = 3_000;
 const GIVE_UP_MS = 60_000;
 
 /**
- * Xendit redirects here after checkout. The webhook activates the
- * subscription asynchronously, so we poll until it flips (or time out).
+ * Xendit redirects here after checkout. We poll /billing/reconcile, which
+ * confirms the payment directly with Xendit and activates the subscription
+ * — so it works even if the Xendit webhook never reaches us.
  */
 function BillingReturn() {
   const router = useRouter();
@@ -25,7 +26,7 @@ function BillingReturn() {
   const { auth, isReady } = useAuth();
   const [timedOut, setTimedOut] = useState(false);
 
-  const { data: subscription } = useSubscription(failed || timedOut ? undefined : POLL_MS);
+  const { data: subscription } = useReconcilePayment(!failed && !timedOut, POLL_MS);
   const slug = auth?.activeTenant?.tenant_slug;
   const isActive = subscription?.status === "active";
 

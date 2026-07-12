@@ -164,6 +164,25 @@ func (r *BillingRepo) FindReusablePendingPayment(ctx context.Context, tenantID, 
 	return p, nil
 }
 
+// LatestPendingXenditPayment returns the tenant's most recent pending
+// Xendit payment (any plan) that still has an invoice id, so the return
+// page can reconcile it directly against Xendit.
+func (r *BillingRepo) LatestPendingXenditPayment(ctx context.Context, tenantID string) (*billing.Payment, error) {
+	p, err := scanPayment(r.db.QueryRow(ctx, `
+		SELECT `+paymentColumns+`
+		FROM subscription_payments
+		WHERE tenant_id = $1 AND status = 'pending' AND method = 'xendit' AND xendit_invoice_id <> ''
+		ORDER BY created_at DESC
+		LIMIT 1`, tenantID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to find pending xendit payment: %w", err)
+	}
+	return p, nil
+}
+
 func (r *BillingRepo) ListPaymentsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]billing.Payment, int64, error) {
 	var total int64
 	if err := r.db.QueryRow(ctx,

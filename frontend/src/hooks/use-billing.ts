@@ -48,6 +48,28 @@ export function useSubscription(refetchInterval?: number) {
   });
 }
 
+/**
+ * Webhook-independent payment confirmation. Polls POST /billing/reconcile,
+ * which asks Xendit directly whether the pending invoice is paid and
+ * activates the subscription if so. The payment-return page uses this so
+ * confirmation never depends on the shared Xendit webhook being delivered.
+ * Stops polling once the subscription is active.
+ */
+export function useReconcilePayment(enabled: boolean, intervalMs = 3_000) {
+  const { auth } = useAuth();
+  return useQuery({
+    queryKey: ["billing", "reconcile", auth?.activeTenant?.tenant_id],
+    queryFn: async () => {
+      const res = await api.post<ApiEnvelope<Subscription>>("/billing/reconcile");
+      return res.data.data;
+    },
+    enabled: enabled && Boolean(auth?.activeTenant),
+    refetchInterval: (query) =>
+      query.state.data && query.state.data.status === "active" ? false : intervalMs,
+    refetchOnWindowFocus: false,
+  });
+}
+
 /** Creates (or reuses) a Xendit invoice; caller redirects to invoice_url. */
 export function useCheckout() {
   return useMutation({

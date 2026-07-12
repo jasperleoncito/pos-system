@@ -45,13 +45,20 @@ type CreateInvoiceRequest struct {
 	InvoiceDuration    int     `json:"invoice_duration,omitempty"` // seconds
 }
 
-// Invoice is the subset of the invoice response we persist.
+// Invoice is the subset of the invoice response we persist / reconcile.
 type Invoice struct {
-	ID         string `json:"id"`
-	InvoiceURL string `json:"invoice_url"`
-	Status     string `json:"status"`
-	ExpiryDate string `json:"expiry_date"`
+	ID             string  `json:"id"`
+	InvoiceURL     string  `json:"invoice_url"`
+	Status         string  `json:"status"` // PENDING | PAID | SETTLED | EXPIRED
+	ExpiryDate     string  `json:"expiry_date"`
+	ExternalID     string  `json:"external_id"`
+	PaidAmount     float64 `json:"paid_amount"`
+	PaidAt         string  `json:"paid_at"`
+	PaymentChannel string  `json:"payment_channel"`
 }
+
+// IsPaid reports whether the invoice status means money arrived.
+func (i Invoice) IsPaid() bool { return i.Status == "PAID" || i.Status == "SETTLED" }
 
 // CreateInvoice creates a hosted invoice and returns its checkout URL.
 func (c *Client) CreateInvoice(ctx context.Context, in CreateInvoiceRequest) (*Invoice, error) {
@@ -73,6 +80,40 @@ func (c *Client) CreateInvoice(ctx context.Context, in CreateInvoiceRequest) (*I
 	}
 	req.SetBasicAuth(c.secretKey, "")
 	req.Header.Set("Content-Type", "application/json")
+
+	res, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("xendit request failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	payload, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read xendit response: %w", err)
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, fmt.Errorf("xendit returned %d: %s", res.StatusCode, string(payload))
+	}
+
+	var invoice Invoice
+	if err := json.Unmarshal(payload, &invoice); err != nil {
+		return nil, fmt.Errorf("failed to decode xendit invoice: %w", err)
+	}
+	return &invoice, nil
+}
+
+// GetInvoice fetches an invoice by ID. Used to reconcile payment status
+// directly with Xendit (the return page polls this) so confirmation never
+// depends on the webhook being delivered.
+func (c *Client) GetInvoice(ctx context.Context, id string) (*Invoice, error) {
+	if !c.Configured() {
+		return nil, fmt.Errorf("xendit is not configured (XENDIT_SECRET_KEY is empty)")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/v2/invoices/"+id, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build get-invoice request: %w", err)
+	}
+	req.SetBasicAuth(c.secretKey, "")
 
 	res, err := c.http.Do(req)
 	if err != nil {
