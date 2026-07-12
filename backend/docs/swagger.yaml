@@ -1017,6 +1017,25 @@ info:
   title: POS System API
   version: "1.0"
 paths:
+  /admin/analytics/sales:
+    get:
+      parameters:
+      - description: Window in days (default 30)
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - BearerAuth: []
+      summary: Platform-wide sales analytics (super admin)
+      tags:
+      - admin
   /admin/billing/settings:
     get:
       produces:

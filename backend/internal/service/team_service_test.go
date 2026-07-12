@@ -151,6 +151,9 @@ func (r *fakeTenantRepo) SetPlan(_ context.Context, _, _ string) error { return 
 func (r *fakeTenantRepo) PlatformStats(_ context.Context) (map[string]any, error) {
 	return nil, nil
 }
+func (r *fakeTenantRepo) PlatformSales(_ context.Context, _ int) (*tenant.PlatformSales, error) {
+	return &tenant.PlatformSales{}, nil
+}
 
 type fakeSettingsRepo struct{ created int }
 

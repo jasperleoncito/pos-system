@@ -13,7 +13,8 @@ import { cn } from "@/lib/utils";
 
 const ADMIN_NAV = [
   { href: "/admin/tenants", label: "Businesses" },
-  { href: "/admin/billing", label: "Billing" },
+  { href: "/admin/sales", label: "Sales" },
+  { href: "/admin/vouchers", label: "Vouchers" },
 ];
 
 /** Guarded shell for platform super-admin pages. */

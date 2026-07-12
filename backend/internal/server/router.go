@@ -423,6 +423,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		adminGroup.PATCH("/tenants/:id/status", tenantHandler.AdminSetTenantStatus)
 		adminGroup.PATCH("/tenants/:id/plan", tenantHandler.AdminSetTenantPlan)
 		adminGroup.GET("/stats", tenantHandler.AdminStats)
+		adminGroup.GET("/analytics/sales", tenantHandler.AdminSales)
 	}
 
 	return r

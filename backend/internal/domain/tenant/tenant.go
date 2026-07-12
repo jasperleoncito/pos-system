@@ -62,6 +62,32 @@ type Member struct {
 	IsOwner         bool       `json:"is_owner"`
 }
 
+// PlatformSalesPoint is one day of platform-wide sales.
+type PlatformSalesPoint struct {
+	Date   string `json:"date"` // YYYY-MM-DD
+	Sales  int64  `json:"sales"`
+	Orders int64  `json:"orders"`
+}
+
+// TopBusiness ranks a tenant by sales for the platform sales view.
+type TopBusiness struct {
+	TenantID string `json:"tenant_id"`
+	Name     string `json:"name"`
+	Slug     string `json:"slug"`
+	Sales    int64  `json:"sales"`
+	Orders   int64  `json:"orders"`
+}
+
+// PlatformSales is the super-admin sales analytics report.
+type PlatformSales struct {
+	Days                int                  `json:"days"`
+	GrossSales          int64                `json:"gross_sales"`
+	Orders              int64                `json:"orders"`
+	SubscriptionRevenue int64                `json:"subscription_revenue"`
+	Series              []PlatformSalesPoint `json:"series"`
+	TopBusinesses       []TopBusiness        `json:"top_businesses"`
+}
+
 type Repository interface {
 	Create(ctx context.Context, t *Tenant) error
 	GetByID(ctx context.Context, id string) (*Tenant, error)
@@ -71,6 +97,8 @@ type Repository interface {
 	SetPlan(ctx context.Context, id, plan string) error
 	// PlatformStats aggregates cross-tenant counters for the admin console.
 	PlatformStats(ctx context.Context) (map[string]any, error)
+	// PlatformSales returns platform-wide sales analytics for the last N days.
+	PlatformSales(ctx context.Context, days int) (*PlatformSales, error)
 }
 
 type SettingsRepository interface {

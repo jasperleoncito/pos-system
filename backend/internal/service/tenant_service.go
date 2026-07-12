@@ -241,3 +241,16 @@ func (s *TenantService) PlatformStats(ctx context.Context) (map[string]any, erro
 	}
 	return stats, nil
 }
+
+// PlatformSales returns platform-wide sales analytics for the last N days
+// (clamped to 1..365, default 30).
+func (s *TenantService) PlatformSales(ctx context.Context, days int) (*tenant.PlatformSales, error) {
+	if days < 1 || days > 365 {
+		days = 30
+	}
+	sales, err := s.tenants.PlatformSales(ctx, days)
+	if err != nil {
+		return nil, apperror.Internal(err)
+	}
+	return sales, nil
+}

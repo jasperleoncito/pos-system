@@ -112,6 +112,79 @@ func (r *TenantRepo) PlatformStats(ctx context.Context) (map[string]any, error) 
 	return stats, nil
 }
 
+// PlatformSales aggregates cross-tenant sales for the super-admin analytics
+// view: a zero-filled daily series, the totals, top businesses, and the
+// subscription revenue collected over the window.
+func (r *TenantRepo) PlatformSales(ctx context.Context, days int) (*tenant.PlatformSales, error) {
+	out := &tenant.PlatformSales{Days: days}
+
+	rows, err := r.db.Query(ctx, `
+		SELECT to_char(d.day, 'YYYY-MM-DD'),
+		       COALESCE(SUM(o.total), 0)::bigint,
+		       COUNT(o.id)::bigint
+		FROM generate_series(
+		        (now() - make_interval(days => $1 - 1))::date,
+		        now()::date,
+		        interval '1 day') AS d(day)
+		LEFT JOIN orders o
+		       ON o.completed_at >= d.day
+		      AND o.completed_at < d.day + interval '1 day'
+		      AND o.status IN `+saleStatuses+` AND o.deleted_at IS NULL
+		GROUP BY d.day
+		ORDER BY d.day`, days)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load platform sales series: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p tenant.PlatformSalesPoint
+		if err := rows.Scan(&p.Date, &p.Sales, &p.Orders); err != nil {
+			return nil, err
+		}
+		out.GrossSales += p.Sales
+		out.Orders += p.Orders
+		out.Series = append(out.Series, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	brows, err := r.db.Query(ctx, `
+		SELECT t.id, t.name, t.slug,
+		       COALESCE(SUM(o.total), 0)::bigint, COUNT(o.id)::bigint
+		FROM orders o
+		JOIN tenants t ON t.id = o.tenant_id AND t.deleted_at IS NULL
+		WHERE o.status IN `+saleStatuses+` AND o.deleted_at IS NULL
+		  AND o.completed_at >= now() - make_interval(days => $1)
+		GROUP BY t.id, t.name, t.slug
+		ORDER BY 4 DESC
+		LIMIT 10`, days)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load top businesses: %w", err)
+	}
+	defer brows.Close()
+	for brows.Next() {
+		var b tenant.TopBusiness
+		if err := brows.Scan(&b.TenantID, &b.Name, &b.Slug, &b.Sales, &b.Orders); err != nil {
+			return nil, err
+		}
+		out.TopBusinesses = append(out.TopBusinesses, b)
+	}
+	if err := brows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := r.db.QueryRow(ctx, `
+		SELECT COALESCE(SUM(amount), 0)::bigint
+		FROM subscription_payments
+		WHERE status = 'paid' AND paid_at >= now() - make_interval(days => $1)`, days).
+		Scan(&out.SubscriptionRevenue); err != nil {
+		return nil, fmt.Errorf("failed to sum subscription revenue: %w", err)
+	}
+
+	return out, nil
+}
+
 func (r *TenantRepo) List(ctx context.Context, limit, offset int) ([]tenant.Tenant, int64, error) {
 	var total int64
 	if err := r.db.QueryRow(ctx,

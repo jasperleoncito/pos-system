@@ -5,12 +5,9 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
 
 import { registerSchema, type RegisterInput } from "@/schemas/auth";
 import { useRegister } from "@/hooks/use-auth";
-import { useCheckout } from "@/hooks/use-billing";
-import { PlanCards } from "@/components/billing/plan-cards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,43 +22,30 @@ function toSlug(value: string): string {
 export default function RegisterPage() {
   const router = useRouter();
   const registerMutation = useRegister();
-  const checkout = useCheckout();
   const {
     register,
     handleSubmit,
     setValue,
-    watch,
     formState: { errors },
   } = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { plan: "monthly" },
+    defaultValues: { plan: "monthly" }, // placeholder; the plan is chosen when paying
   });
-  const plan = watch("plan");
 
   const onSubmit = handleSubmit((values) => {
     const { confirm_password, ...input } = values;
     void confirm_password;
     registerMutation.mutate(input, {
       onSuccess: (result) => {
-        // Account exists — now collect the first payment. The fresh
-        // access token is already stored, so checkout is authenticated.
-        checkout.mutate({ plan: values.plan }, {
-          onSuccess: (result) => {
-            window.location.href = result.invoice_url;
-          },
-          onError: () => {
-            // Payment page failed to open — land them on the dashboard,
-            // where the pay-modal takes over.
-            const slug = result.active_tenant?.tenant_slug;
-            toast.info("You can complete payment from your dashboard");
-            router.replace(slug ? `/${slug}/dashboard` : "/login");
-          },
-        });
+        // Logged in already — land on the dashboard, where the pay modal
+        // handles choosing a plan, applying a voucher, and payment.
+        const slug = result.active_tenant?.tenant_slug;
+        router.replace(slug ? `/${slug}/dashboard` : "/login");
       },
     });
   });
 
-  const isBusy = registerMutation.isPending || checkout.isPending;
+  const isBusy = registerMutation.isPending;
 
   return (
     <div className="space-y-8">
@@ -124,22 +108,13 @@ export default function RegisterPage() {
           )}
         </div>
 
-        <div className="space-y-2">
-          <Label>Plan</Label>
-          <PlanCards
-            value={plan}
-            onChange={(p) => setValue("plan", p)}
-            disabled={isBusy}
-          />
-          <p className="text-xs text-muted-foreground">
-            You&apos;ll be taken to a secure payment page to activate your business.
-          </p>
-        </div>
-
         <Button type="submit" className="w-full" disabled={isBusy}>
           {isBusy && <Loader2 className="size-4 animate-spin" aria-hidden />}
-          {checkout.isPending ? "Preparing payment…" : "Create account & pay"}
+          Create account
         </Button>
+        <p className="text-center text-xs text-muted-foreground">
+          You&apos;ll pick a plan and pay from your dashboard to activate.
+        </p>
       </form>
 
       <p className="text-center text-sm text-muted-foreground">

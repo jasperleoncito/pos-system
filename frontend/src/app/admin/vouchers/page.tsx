@@ -281,14 +281,14 @@ function VouchersTab() {
   );
 }
 
-export default function AdminBillingPage() {
+export default function AdminVouchersPage() {
   const { data: stats } = useAdminBillingStats();
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Billing</h1>
-        <p className="text-muted-foreground">Plan pricing and discount vouchers</p>
+        <h1 className="text-2xl font-bold tracking-tight">Vouchers</h1>
+        <p className="text-muted-foreground">Discount codes and subscription plan pricing</p>
       </header>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

@@ -204,3 +204,22 @@ func (h *TenantHandler) AdminStats(c *gin.Context) {
 	}
 	response.OK(c, "", stats)
 }
+
+// AdminSales godoc
+//
+//	@Summary	Platform-wide sales analytics (super admin)
+//	@Tags		admin
+//	@Security	BearerAuth
+//	@Produce	json
+//	@Param		days	query		int	false	"Window in days (default 30)"
+//	@Success	200		{object}	response.Envelope
+//	@Router		/admin/analytics/sales [get]
+func (h *TenantHandler) AdminSales(c *gin.Context) {
+	days, _ := strconv.Atoi(c.DefaultQuery("days", "30"))
+	sales, err := h.tenants.PlatformSales(c.Request.Context(), days)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	response.OK(c, "", sales)
+}

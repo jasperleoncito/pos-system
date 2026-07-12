@@ -99,6 +99,41 @@ export function useAdminStats() {
   });
 }
 
+export interface PlatformSalesPoint {
+  date: string;
+  sales: number;
+  orders: number;
+}
+
+export interface TopBusiness {
+  tenant_id: string;
+  name: string;
+  slug: string;
+  sales: number;
+  orders: number;
+}
+
+export interface PlatformSales {
+  days: number;
+  gross_sales: number;
+  orders: number;
+  subscription_revenue: number;
+  series: PlatformSalesPoint[];
+  top_businesses: TopBusiness[];
+}
+
+export function useAdminSales(days: number) {
+  return useQuery({
+    queryKey: ["admin", "sales", days],
+    queryFn: async () => {
+      const res = await api.get<ApiEnvelope<PlatformSales>>("/admin/analytics/sales", {
+        params: { days },
+      });
+      return res.data.data;
+    },
+  });
+}
+
 export interface AdminCreateTenantInput {
   business_name: string;
   business_slug: string;
