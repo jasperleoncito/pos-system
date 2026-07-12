@@ -164,16 +164,11 @@ func (c *Config) validate() error {
 	if c.MinIO.SecretKey == "" {
 		missing = append(missing, "MINIO_SECRET_KEY")
 	}
-	// Billing can stay unconfigured in dev (checkout fails cleanly), but
-	// production must never run without it.
-	if c.App.IsProduction() {
-		if c.Xendit.SecretKey == "" {
-			missing = append(missing, "XENDIT_SECRET_KEY")
-		}
-		if c.Xendit.WebhookToken == "" {
-			missing = append(missing, "XENDIT_WEBHOOK_TOKEN")
-		}
-	}
+	// Xendit is optional at boot (same as the rent-system reference): the
+	// server runs in production without it, and subscription billing simply
+	// stays inert until BOTH keys are set. Invoice creation fails cleanly and
+	// the webhook rejects unverified callbacks (see billing handler), so there
+	// is no silently-broken paid flow — billing is either fully on or fully off.
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required environment variables: %v", missing)
 	}
