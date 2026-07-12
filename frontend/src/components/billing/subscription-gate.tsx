@@ -3,9 +3,9 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Loader2, Lock, TriangleAlert, X } from "lucide-react";
+import { Loader2, Lock, LogOut, TriangleAlert, X } from "lucide-react";
 
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, useLogout } from "@/hooks/use-auth";
 import { useCheckout, useSubscription } from "@/hooks/use-billing";
 import { PlanCards } from "@/components/billing/plan-cards";
 import { formatCentavos } from "@/lib/currency";
@@ -62,6 +62,7 @@ export function SubscriptionGate({ children }: { children: ReactNode }) {
 
 function PlanPayModal({ subscription }: { subscription: Subscription }) {
   const checkout = useCheckout();
+  const logout = useLogout();
   const [plan, setPlan] = useState<BillingPlan>(subscription.plan);
   const isPending = subscription.status === "pending";
 
@@ -96,12 +97,23 @@ function PlanPayModal({ subscription }: { subscription: Subscription }) {
         <p className="text-center text-xs text-muted-foreground">
           You&apos;ll be redirected to a secure Xendit payment page.
         </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mx-auto text-muted-foreground"
+          onClick={() => logout()}
+          disabled={checkout.isPending}
+        >
+          <LogOut className="size-4" aria-hidden />
+          Log out
+        </Button>
       </AlertDialogContent>
     </AlertDialog>
   );
 }
 
 function BlockedScreen() {
+  const logout = useLogout();
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
       <div className="max-w-sm space-y-4 text-center">
@@ -113,6 +125,10 @@ function BlockedScreen() {
           The subscription needs to be renewed before anyone can use the app. Please contact the
           business owner — this screen unlocks automatically once payment is made.
         </p>
+        <Button variant="outline" size="sm" className="mx-auto" onClick={() => logout()}>
+          <LogOut className="size-4" aria-hidden />
+          Log out
+        </Button>
       </div>
     </div>
   );
