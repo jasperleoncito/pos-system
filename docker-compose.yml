@@ -79,15 +79,46 @@ services:
     build:
       context: ./backend
       target: prod
-    env_file: .env
-    environment:
+    # No env_file: config comes from these interpolated vars. Locally
+    # they fill from the repo's .env automatically; on Portainer/Git
+    # they fill from the stack's Environment variables panel.
+    environment: &app-env
+      APP_ENV: ${APP_ENV:-production}
+      APP_NAME: ${APP_NAME:-POS System}
+      HTTP_PORT: ${HTTP_PORT:-9137}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+      APP_URL: ${APP_URL:-}
       DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-pos}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      DB_NAME: ${DB_NAME:-pos}
+      DB_SSLMODE: ${DB_SSLMODE:-disable}
+      DB_MAX_CONNS: ${DB_MAX_CONNS:-20}
       REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
       MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
+      MINIO_BUCKET: ${MINIO_BUCKET:-pos}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      MINIO_PUBLIC_BASE_URL: ${MINIO_PUBLIC_BASE_URL:-http://localhost:7642/storage}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-720h}
       SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@pos.local}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-POS System}
+      XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY:-}
+      XENDIT_WEBHOOK_TOKEN: ${XENDIT_WEBHOOK_TOKEN:-}
       # First-boot auto-seed: admin = super admin only (uses
       # SEED_PASSWORD), demo = full demo tenant, off = nothing.
       SEED_ON_START: ${SEED_ON_START:-admin}
+      SEED_PASSWORD: ${SEED_PASSWORD:-password123}
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,12 +134,9 @@ services:
       context: ./backend
       target: prod
     command: ["/app/worker"]
-    env_file: .env
+    # Same config as backend (see the &app-env anchor above).
     environment:
-      DB_HOST: postgres
-      REDIS_ADDR: redis:6379
-      MINIO_ENDPOINT: minio:9000
-      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      <<: *app-env
     depends_on:
       postgres:
         condition: service_healthy
